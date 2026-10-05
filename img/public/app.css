@@ -70,7 +70,6 @@ input[type=search]:focus, select:focus { border-color: var(--ink); }
 select { cursor: pointer; }
 .err { min-height: 1.7em; margin: 10px 0 0; color: var(--accent); font-size: 14px; }
 .aside { margin: 14px 0 0; font-size: 14px; color: var(--ink-3); }
-.note { margin: 16px 0 0; font-size: 13px; color: var(--ink-3); }
 .empty { padding: 32px 0; color: var(--ink-3); font-style: italic; }
 .code { margin: 6px 0 0; padding: 7px 10px; background: var(--paper-2); border: 1px solid var(--hair); font-family: var(--mono); font-size: 13px; line-height: 1.5; color: var(--ink); white-space: pre; overflow-x: auto; }
 

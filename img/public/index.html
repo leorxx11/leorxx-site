@@ -59,7 +59,7 @@
       </span>
     </label>
     <div class="opts">
-      <label><input type="checkbox" id="opt-webp"> 转成 WebP</label>
+      <label title="PNG 和 JPEG 会在浏览器里重新编码，顺带抹掉 EXIF 和定位；GIF 保持原样"><input type="checkbox" id="opt-webp"> 转成 WebP</label>
       <label>质量 <input type="range" id="opt-quality" min="50" max="100" step="1"> <span id="opt-quality-out"></span></label>
       <label>最大宽度
         <select id="opt-width">
@@ -74,7 +74,6 @@
       <span class="fmt-pick">复制为 <span class="seg" data-fmt-switch></span></span>
     </div>
     <ul class="queue" id="queue"></ul>
-    <p class="note">PNG 和 JPEG 会在浏览器里重新编码，顺手抹掉照片里的 EXIF 和定位；GIF 原样保留动画。</p>
   </main>
 
   <!-- 底片库 -->
@@ -130,7 +129,6 @@
   </main>
 
   <footer class="colophon">
-    <span>底片存在 Cloudflare R2 · 索引在 SQLite · 用通行密钥进门</span>
     <span>© leorxx</span>
   </footer>
 </div>
