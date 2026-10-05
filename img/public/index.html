@@ -5,127 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>暗房 Darkroom</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' fill='%231b1a17'/><circle cx='32' cy='32' r='14' fill='none' stroke='%23e0674b' stroke-width='5'/></svg>">
+<link rel="icon" href="/assets/icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --paper: #f3efe6; --paper-2: #ebe5d8; --ink: #1b1a17; --ink-2: #57534b; --ink-3: #8c867a;
-    --rule: #1b1a17; --hair: #cfc7b6; --accent: #b8361d; --ok: #3d7a2e;
-    --serif-cn: "Noto Serif SC", "Songti SC", "STSong", serif;
-    --serif-en: "Playfair Display", Georgia, serif;
-    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --paper: #151412; --paper-2: #1d1c19; --ink: #ece6da; --ink-2: #b3ab9c; --ink-3: #7c7568;
-      --rule: #ece6da; --hair: #38352f; --accent: #e0674b; --ok: #8cc06f;
-    }
-  }
-  :root[data-theme="dark"] {
-    --paper: #151412; --paper-2: #1d1c19; --ink: #ece6da; --ink-2: #b3ab9c; --ink-3: #7c7568;
-    --rule: #ece6da; --hair: #38352f; --accent: #e0674b; --ok: #8cc06f;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--serif-cn); font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
-  a { color: inherit; }
-  button, input, select { font: inherit; color: inherit; }
-  .page { max-width: 1120px; margin: 0 auto; padding: 0 16px 48px; }
-  @media (min-width: 720px) { .page { padding: 0 40px 64px; } }
-
-  .masthead { display: flex; justify-content: space-between; gap: 12px; padding: 14px 0 10px; font-size: 13px; color: var(--ink-2); letter-spacing: .04em; border-bottom: 3px double var(--rule); }
-  .masthead a { text-decoration: none; border-bottom: 1px solid var(--hair); }
-  .masthead a:hover { color: var(--accent); border-color: var(--accent); }
-
-  .hero { padding: 40px 0 28px; border-bottom: 1px solid var(--rule); display: grid; gap: 16px; }
-  @media (min-width: 880px) { .hero { grid-template-columns: auto 1fr; align-items: end; gap: 48px; padding: 56px 0 36px; } }
-  .title { margin: 0; font-size: clamp(64px, 13vw, 140px); font-weight: 900; line-height: .95; letter-spacing: -.02em; }
-  .title em { font-family: var(--serif-en); font-weight: 400; font-size: .42em; color: var(--accent); margin-left: .2em; letter-spacing: 0; }
-  .deck { margin: 0; color: var(--ink-2); font-size: 17px; max-width: 28em; }
-
-  .kicker { display: flex; align-items: baseline; gap: 14px; margin: 40px 0 14px; font-size: 13px; letter-spacing: .2em; color: var(--ink-2); font-weight: 400; }
-  .kicker b { font-weight: 600; color: var(--ink); letter-spacing: .3em; }
-  .kicker i { font-family: var(--serif-en); letter-spacing: .02em; font-size: 15px; }
-  .kicker::after { content: ""; flex: 1; border-bottom: 1px solid var(--rule); transform: translateY(-4px); }
-  .kicker .count { order: 3; font-size: 13px; letter-spacing: .04em; color: var(--ink-3); }
-
-  /* 登录 */
-  .login { max-width: 420px; padding: 40px 0; }
-  .login p { margin: 0 0 16px; color: var(--ink-2); }
-  .field { display: flex; border-bottom: 1px solid var(--rule); }
-  .field input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; padding: 10px 0; font-family: var(--mono); font-size: 15px; }
-  .btn { background: none; border: 0; padding: 8px 0 8px 16px; cursor: pointer; color: var(--ink); white-space: nowrap; }
-  .btn:hover { color: var(--accent); }
-  .err { min-height: 1.7em; margin: 8px 0 0; color: var(--accent); font-size: 14px; }
-
-  /* 冲洗台 */
-  .drop {
-    position: relative; display: grid; place-items: center; text-align: center; min-height: 240px; padding: 32px 16px;
-    border: 1px dashed var(--ink-3); cursor: pointer; transition: background .2s, border-color .2s;
-  }
-  .drop:hover, .drop.over { background: var(--paper-2); border-color: var(--accent); }
-  .drop.over { border-style: solid; }
-  .drop h2 { margin: 0; font-size: clamp(28px, 5vw, 40px); font-weight: 900; }
-  .drop p { margin: 6px 0 0; color: var(--ink-3); font-size: 14px; }
-  .drop kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--hair); padding: 0 5px; }
-  .drop input { display: none; }
-
-  .opts { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: center; padding: 12px 0; font-size: 14px; color: var(--ink-2); border-bottom: 1px solid var(--hair); }
-  .opts label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-  .opts input[type=checkbox] { accent-color: var(--accent); }
-  .opts input[type=range] { accent-color: var(--accent); width: 90px; }
-  .seg { display: inline-flex; gap: 0; }
-  .seg button { background: none; border: 0; border-bottom: 1px solid transparent; padding: 0 8px; cursor: pointer; color: var(--ink-3); }
-  .seg button[aria-pressed=true] { color: var(--ink); border-color: var(--accent); }
-  .opts .spacer { flex: 1; }
-
-  /* 冲洗记录 */
-  .queue { list-style: none; margin: 0; padding: 0; }
-  .queue li { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--hair); }
-  .queue img { width: 56px; height: 56px; object-fit: cover; background: var(--paper-2); display: block; }
-  .queue .name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .queue .meta { font-size: 13px; color: var(--ink-3); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .queue .meta.bad { color: var(--accent); font-family: var(--serif-cn); }
-  .queue .meta.ok { color: var(--ok); }
-  .queue .code {
-    margin: 6px 0 0; padding: 7px 10px; background: var(--paper-2); border: 1px solid var(--hair);
-    font-family: var(--mono); font-size: 13px; line-height: 1.5; color: var(--ink);
-    white-space: pre; overflow-x: auto; cursor: text;
-  }
-  .queue .acts { align-self: end; font-size: 14px; padding-bottom: 7px; }
-  .queue .acts .link { white-space: nowrap; }
-  .queue .acts .link.done { color: var(--ok); border-color: var(--ok); }
-  .link { background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink-2); border-bottom: 1px solid var(--hair); }
-  .link:hover { color: var(--accent); border-color: var(--accent); }
-  .progress { height: 2px; background: var(--hair); margin-top: 6px; }
-  .progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
-
-  /* 底片 */
-  .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
-  @media (max-width: 480px) { .sheet { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
-  .frame { position: relative; margin: 0; background: var(--paper-2); border: 1px solid var(--hair); padding: 6px 6px 0; }
-  .frame .ph { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: var(--hair); cursor: copy; }
-  .frame figcaption { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-3); padding: 4px 0 5px; font-variant-numeric: tabular-nums; }
-  .frame .del { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; display: grid; place-items: center; border: 0; background: var(--paper); color: var(--ink); opacity: 0; cursor: pointer; font-size: 16px; line-height: 1; transition: opacity .15s; }
-  .frame:hover .del, .frame .del:focus-visible { opacity: .92; }
-  .frame .del:hover { color: var(--accent); }
-  @media (hover: none) { .frame .del { opacity: .85; } }
-  .empty { padding: 32px 0; color: var(--ink-3); font-style: italic; }
-  .more { display: block; margin: 24px auto 0; }
-
-  .toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; background: var(--ink); color: var(--paper); padding: 8px 18px; font-size: 14px; transition: opacity .2s, transform .2s; max-width: calc(100% - 32px); }
-  .toast.show { opacity: 1; transform: translate(-50%, 0); }
-
-  .colophon { margin-top: 56px; padding-top: 14px; border-top: 3px double var(--rule); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; font-size: 13px; color: var(--ink-3); }
-  [hidden] { display: none !important; }
-</style>
+<link rel="stylesheet" href="/assets/app.css">
+<script type="module" src="/assets/main.js"></script>
 </head>
 <body>
 <div class="page">
   <header class="masthead">
-    <span>Leo's corner · 第 02 栏</span>
-    <a href="https://leorxx.xyz">← 回到首页</a>
+    <span class="issue">Leo's corner · 第 02 栏</span>
+    <nav class="tabs" id="tabs" hidden>
+      <a href="#develop" data-view="develop">冲洗台</a>
+      <a href="#library" data-view="library">底片库</a>
+      <a href="#settings" data-view="settings">设置</a>
+    </nav>
+    <a class="home" href="https://leorxx.xyz">← 首页</a>
   </header>
 
   <section class="hero">
@@ -133,273 +29,111 @@
     <p class="deck">把照片丢进来，冲洗成一条链接。底片存在 R2，冲洗记录只有你看得见。</p>
   </section>
 
-  <section id="login" class="login" hidden>
+  <!-- 进门 -->
+  <section class="view login" id="view-login" hidden>
     <h2 class="kicker"><b>进门</b><i>Knock knock</i></h2>
-    <p>暗房不对外开放，请出示口令。</p>
-    <form class="field" id="login-form">
-      <input id="token" type="password" autocomplete="current-password" placeholder="口令" aria-label="口令">
-      <button class="btn" type="submit">进入 →</button>
+    <div id="login-passkey" hidden>
+      <p>用指纹或面容解锁，不用记口令。</p>
+      <button class="btn solid" id="login-btn" type="button">用通行密钥进入</button>
+      <p class="aside"><button class="link" id="show-setup" type="button">在新设备上用初始化码绑定</button></p>
+    </div>
+    <form id="setup-form" hidden novalidate>
+      <p id="setup-hint">第一次进门：在服务器上执行 <code>docker logs darkroom</code>，找到初始化码。</p>
+      <div class="field">
+        <input id="setup-code" placeholder="ABCD-EFGH" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" aria-label="初始化码">
+        <button class="btn" type="submit">绑定通行密钥 →</button>
+      </div>
+      <p class="aside" id="back-login" hidden><button class="link" type="button">← 用已有的通行密钥进入</button></p>
     </form>
     <p class="err" id="login-err" role="alert"></p>
   </section>
 
-  <main id="app" hidden>
+  <!-- 冲洗台 -->
+  <main class="view" id="view-develop" hidden>
     <h2 class="kicker"><b>冲洗台</b><i>Develop</i></h2>
     <label class="drop" id="drop">
       <input id="file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" multiple>
-      <div>
-        <h2>把照片放这里。</h2>
-        <p>拖进来、点一下选文件，或者直接 <kbd>⌘ V</kbd> 粘贴截图</p>
-      </div>
+      <span>
+        <strong>把照片放这里。</strong>
+        <small>拖进来、点一下选文件，或者直接 <kbd>⌘ V</kbd> 粘贴截图</small>
+      </span>
     </label>
     <div class="opts">
-      <label><input type="checkbox" id="webp" checked> 转成 WebP</label>
-      <label>质量 <input type="range" id="quality" min="50" max="100" step="1" value="85"> <span id="q-out">85</span></label>
+      <label><input type="checkbox" id="opt-webp"> 转成 WebP</label>
+      <label>质量 <input type="range" id="opt-quality" min="50" max="100" step="1"> <span id="opt-quality-out"></span></label>
+      <label>最大宽度
+        <select id="opt-width">
+          <option value="0">不限</option>
+          <option value="3840">3840</option>
+          <option value="2560">2560</option>
+          <option value="1920">1920</option>
+          <option value="1280">1280</option>
+        </select>
+      </label>
       <span class="spacer"></span>
-      <span>复制为 <span class="seg" id="fmt">
-        <button type="button" data-fmt="url">链接</button><button type="button" data-fmt="md">Markdown</button><button type="button" data-fmt="html">HTML</button>
-      </span></span>
+      <span class="fmt-pick">复制为 <span class="seg" data-fmt-switch></span></span>
     </div>
     <ul class="queue" id="queue"></ul>
+    <p class="note">PNG 和 JPEG 会在浏览器里重新编码，顺手抹掉照片里的 EXIF 和定位；GIF 原样保留动画。</p>
+  </main>
 
-    <h2 class="kicker"><b>底片</b><i>Contact sheet</i><span class="count" id="count"></span></h2>
-    <div class="sheet" id="sheet"></div>
-    <p class="empty" id="empty" hidden>还没有冲洗过照片。</p>
-    <button class="link more" id="more" hidden>再翻一页</button>
+  <!-- 底片库 -->
+  <main class="view" id="view-library" hidden>
+    <div class="lib-bar">
+      <span class="seg big" id="lib-mode">
+        <button type="button" data-mode="sheet" aria-pressed="true">底片</button>
+        <button type="button" data-mode="trash" aria-pressed="false">废纸篓 <span id="trash-count"></span></button>
+      </span>
+      <span class="spacer"></span>
+      <input type="search" id="lib-q" placeholder="搜原文件名" aria-label="搜原文件名">
+      <select id="lib-month" aria-label="按月份筛选"><option value="">全部月份</option></select>
+      <button class="link" type="button" id="lib-multi">多选</button>
+    </div>
+    <div class="selbar" id="selbar" hidden>
+      <span>已选 <b id="sel-count">0</b> 张</span>
+      <span class="spacer"></span>
+      <span class="sheet-only"><button class="link" type="button" id="sel-copy">复制链接</button></span>
+      <span class="sheet-only"><button class="link danger" type="button" id="sel-trash">移到废纸篓</button></span>
+      <span class="trash-only"><button class="link" type="button" id="sel-restore">恢复</button></span>
+      <span class="trash-only"><button class="link danger" type="button" id="sel-purge">彻底删除</button></span>
+      <button class="link" type="button" id="sel-cancel">取消</button>
+    </div>
+    <div class="lib">
+      <div class="lib-main">
+        <div id="groups"></div>
+        <div id="sentinel"></div>
+        <p class="empty" id="lib-empty" hidden></p>
+        <p class="trash-only aside" id="trash-tools" hidden>
+          图片在废纸篓里放 <span id="trash-days">30</span> 天后会被彻底删除。
+          <button class="link danger" type="button" id="trash-empty">现在清空</button>
+        </p>
+      </div>
+      <aside class="detail" id="detail" aria-live="polite"></aside>
+    </div>
+  </main>
+
+  <!-- 设置 -->
+  <main class="view" id="view-settings" hidden>
+    <h2 class="kicker"><b>通行密钥</b><i>Passkeys</i></h2>
+    <ul class="rows" id="passkeys"></ul>
+    <p class="aside"><button class="link" type="button" id="add-passkey">在这台设备上再添加一把</button></p>
+
+    <h2 class="kicker"><b>登录</b><i>Sessions</i></h2>
+    <p class="aside">
+      <span id="session-count"></span>
+      <button class="link" type="button" id="logout-others">退出其他设备</button>
+      · <button class="link" type="button" id="logout">退出这台设备</button>
+    </p>
+
+    <h2 class="kicker"><b>用量</b><i>Storage</i></h2>
+    <div class="usage" id="usage"></div>
   </main>
 
   <footer class="colophon">
-    <span>转 WebP 在浏览器里完成，会顺手抹掉照片里的 EXIF 和定位</span>
-    <span><button class="link" id="logout" hidden>锁门离开</button></span>
+    <span>底片存在 Cloudflare R2 · 索引在 SQLite · 用通行密钥进门</span>
+    <span>© leorxx</span>
   </footer>
 </div>
 <div class="toast" id="toast" role="status"></div>
-
-<script>
-(() => {
-  const $ = (s) => document.querySelector(s);
-  const store = {
-    get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-    set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
-    del: (k) => { try { localStorage.removeItem(k); } catch {} },
-  };
-  try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
-
-  let token = store.get('darkroom-token') || '';
-  let fmt = store.get('darkroom-fmt') || 'md';
-  let offset = 0;
-
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const abs = (u) => new URL(u, location.origin).href;
-  const fmtSize = (b) => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
-  const fmtDate = (t) => { const d = new Date(t); return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`; };
-  const baseName = (n) => (n || 'image').replace(/\.[^.]+$/, '');
-  const formatLink = (url, name) => {
-    url = abs(url);
-    if (fmt === 'md') return `![${baseName(name)}](${url})`;
-    if (fmt === 'html') return `<img src="${url}" alt="${esc(baseName(name))}">`;
-    return url;
-  };
-
-  let toastTimer;
-  function toast(msg) {
-    const el = $('#toast');
-    el.textContent = msg;
-    el.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
-  }
-
-  async function copy(text) {
-    try { await navigator.clipboard.writeText(text); }
-    catch {
-      const ta = Object.assign(document.createElement('textarea'), { value: text });
-      document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove();
-    }
-  }
-
-  async function api(path, opts = {}) {
-    const r = await fetch(path, { ...opts, headers: { ...(opts.headers || {}), authorization: `Bearer ${token}` } });
-    let body = null;
-    try { body = await r.json(); } catch {}
-    if (r.status === 401) { lock(); throw new Error('口令失效了，请重新进门'); }
-    if (!r.ok) throw new Error(body?.error || `HTTP ${r.status}`);
-    return body;
-  }
-
-  // ---------- 进门 / 锁门 ----------
-  function lock() {
-    token = '';
-    store.del('darkroom-token');
-    $('#app').hidden = true; $('#logout').hidden = true; $('#login').hidden = false;
-    $('#token').focus();
-  }
-  async function enter() {
-    $('#login').hidden = true; $('#app').hidden = false; $('#logout').hidden = false;
-    offset = 0; $('#sheet').innerHTML = '';
-    await loadSheet();
-  }
-  $('#login-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const err = $('#login-err');
-    const value = $('#token').value.trim();
-    if (!value) { err.textContent = '先输入口令'; return; }
-    err.textContent = '';
-    try {
-      const r = await fetch('/api/ping', { headers: { authorization: `Bearer ${value}` } });
-      if (!r.ok) { err.textContent = (await r.json().catch(() => null))?.error || '口令不对'; return; }
-      token = value; store.set('darkroom-token', token); $('#token').value = '';
-      enter();
-    } catch { err.textContent = '连不上服务器'; }
-  });
-  $('#token').addEventListener('input', () => { $('#login-err').textContent = ''; });
-  $('#logout').addEventListener('click', lock);
-
-  // ---------- 选项 ----------
-  // 切换格式时，已冲洗的记录跟着换成对应格式
-  const syncFmt = () => {
-    document.querySelectorAll('#fmt button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.fmt === fmt));
-    document.querySelectorAll('#queue li[data-url]').forEach((li) => {
-      li.querySelector('.code').textContent = formatLink(li.dataset.url, li.dataset.name);
-    });
-  };
-  syncFmt();
-  $('#fmt').addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b) return;
-    fmt = b.dataset.fmt; store.set('darkroom-fmt', fmt); syncFmt();
-  });
-  const webp = $('#webp'), quality = $('#quality');
-  webp.checked = store.get('darkroom-webp') !== '0';
-  quality.value = store.get('darkroom-q') || 85;
-  $('#q-out').textContent = quality.value;
-  webp.addEventListener('change', () => store.set('darkroom-webp', webp.checked ? '1' : '0'));
-  quality.addEventListener('input', () => { $('#q-out').textContent = quality.value; store.set('darkroom-q', quality.value); });
-
-  // ---------- 冲洗 ----------
-  // PNG/JPEG 在浏览器里转 WebP；转完反而更大、或浏览器不支持 WebP 编码，就用原图
-  async function develop(file) {
-    if (!webp.checked || !['image/png', 'image/jpeg'].includes(file.type)) return file;
-    try {
-      const bmp = await createImageBitmap(file);
-      const canvas = document.createElement('canvas');
-      canvas.width = bmp.width; canvas.height = bmp.height;
-      canvas.getContext('2d').drawImage(bmp, 0, 0);
-      bmp.close?.();
-      const blob = await new Promise((res) => canvas.toBlob(res, 'image/webp', quality.value / 100));
-      if (!blob || blob.type !== 'image/webp' || blob.size >= file.size) return file;
-      return blob;
-    } catch { return file; }
-  }
-
-  function upload(blob, name, onProgress) {
-    return new Promise((resolve, reject) => {
-      const x = new XMLHttpRequest();
-      x.open('POST', '/api/upload');
-      x.setRequestHeader('authorization', `Bearer ${token}`);
-      x.setRequestHeader('x-filename', encodeURIComponent(name));
-      x.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
-      x.onload = () => {
-        let body = null; try { body = JSON.parse(x.responseText); } catch {}
-        if (x.status === 401) lock();
-        x.status === 200 ? resolve(body) : reject(new Error(body?.error || `HTTP ${x.status}`));
-      };
-      x.onerror = () => reject(new Error('网络断了'));
-      x.send(blob);
-    });
-  }
-
-  async function handleFile(file) {
-    const name = file.name && file.name !== 'image.png' ? file.name : `截图-${new Date().toLocaleString('zh-CN', { hour12: false }).replace(/[/: ]/g, '')}.png`;
-    const li = document.createElement('li');
-    const preview = URL.createObjectURL(file);
-    li.innerHTML = `<img alt=""><div style="min-width:0"><div class="name"></div><div class="meta">显影中…</div><div class="progress"><i></i></div></div><div class="acts"></div>`;
-    li.querySelector('img').src = preview;
-    li.querySelector('.name').textContent = name;
-    $('#queue').prepend(li);
-    const meta = li.querySelector('.meta'), bar = li.querySelector('.progress i');
-    try {
-      const blob = await develop(file);
-      const saved = blob !== file ? `  ${fmtSize(file.size)} → ${fmtSize(blob.size)}` : `  ${fmtSize(file.size)}`;
-      meta.textContent = '冲洗中…' + saved;
-      const res = await upload(blob, name, (p) => { bar.style.width = (p * 100).toFixed(0) + '%'; });
-      li.querySelector('.progress').remove();
-      li.dataset.url = res.url;
-      li.dataset.name = name;
-      meta.className = 'meta ok';
-      meta.textContent = '已冲洗' + saved;
-      const code = document.createElement('pre');
-      code.className = 'code';
-      code.textContent = formatLink(res.url, name);
-      meta.after(code);
-
-      const btn = document.createElement('button');
-      btn.className = 'link';
-      btn.textContent = '复制';
-      let resetTimer;
-      const copied = () => {
-        btn.textContent = '已复制 ✓'; btn.classList.add('done');
-        clearTimeout(resetTimer);
-        resetTimer = setTimeout(() => { btn.textContent = '复制'; btn.classList.remove('done'); }, 1600);
-      };
-      btn.addEventListener('click', async () => { await copy(code.textContent); copied(); });
-      li.querySelector('.acts').append(btn);
-
-      await copy(code.textContent);
-      copied();
-      toast(`已冲洗，${{ url: '链接', md: 'Markdown', html: 'HTML' }[fmt]} 已复制`);
-      offset = 0; $('#sheet').innerHTML = ''; loadSheet();
-    } catch (err) {
-      li.querySelector('.progress')?.remove();
-      meta.className = 'meta bad';
-      meta.textContent = '冲洗失败：' + err.message;
-    }
-  }
-
-  const handleFiles = async (files) => {
-    const imgs = [...files].filter((f) => f.type.startsWith('image/'));
-    if (!imgs.length) { toast('只收图片'); return; }
-    for (const f of imgs) await handleFile(f);
-  };
-
-  const drop = $('#drop');
-  $('#file').addEventListener('change', (e) => { handleFiles(e.target.files); e.target.value = ''; });
-  ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
-  ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
-  document.addEventListener('paste', (e) => {
-    if ($('#app').hidden || !e.clipboardData?.files.length) return;
-    e.preventDefault();
-    handleFiles(e.clipboardData.files);
-  });
-
-  // ---------- 底片 ----------
-  async function loadSheet() {
-    try {
-      const data = await api(`/api/list?offset=${offset}&limit=60`);
-      const sheet = $('#sheet');
-      for (const it of data.items) {
-        const fig = document.createElement('figure');
-        fig.className = 'frame';
-        fig.innerHTML = `<img class="ph" loading="lazy" alt="" title="点击复制"><figcaption><span>${fmtDate(it.time)}</span><span>${fmtSize(it.size)}</span></figcaption><button class="del" aria-label="删除">×</button>`;
-        fig.querySelector('.ph').src = it.url;
-        fig.querySelector('.ph').addEventListener('click', () => { copy(formatLink(it.url, it.key.split('/').pop())); toast('已复制'); });
-        fig.querySelector('.del').addEventListener('click', async () => {
-          if (!confirm('删掉这张底片？外面引用它的地方会一起失效。')) return;
-          try { await api(`/api/object?key=${encodeURIComponent(it.key)}`, { method: 'DELETE' }); fig.remove(); toast('已删除'); }
-          catch (err) { toast(err.message); }
-        });
-        sheet.append(fig);
-      }
-      offset += data.items.length;
-      $('#count').textContent = `共 ${data.total} 张`;
-      $('#empty').hidden = data.total > 0;
-      $('#more').hidden = offset >= data.total;
-    } catch (err) { toast(err.message); }
-  }
-  $('#more').addEventListener('click', loadSheet);
-
-  token ? enter() : lock();
-})();
-</script>
 </body>
 </html>

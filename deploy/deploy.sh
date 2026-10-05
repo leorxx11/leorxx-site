@@ -15,7 +15,7 @@ ssh "$SERVER" "sudo mkdir -p $STACK/static/home /srv/leorxx/img"
 ssh "$SERVER" "sudo chmod -R a+rX $STACK/static/home"
 
 echo "→ 暗房"
-"${SYNC[@]}" --delete --exclude node_modules --exclude .env img/ "$SERVER:/srv/leorxx/img/"
+"${SYNC[@]}" --delete --exclude node_modules --exclude .env --exclude data img/ "$SERVER:/srv/leorxx/img/"
 if [ -f img/.env ]; then
   "${SYNC[@]}" img/.env "$SERVER:/srv/leorxx/img/.env"
   ssh "$SERVER" "sudo chown root:root /srv/leorxx/img/.env && sudo chmod 600 /srv/leorxx/img/.env"
