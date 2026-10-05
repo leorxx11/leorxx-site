@@ -37,9 +37,6 @@ function showSetup(firstTime) {
   $('#login-passkey').hidden = true;
   $('#setup-form').hidden = false;
   $('#back-login').hidden = firstTime;
-  $('#setup-hint').innerHTML = firstTime
-    ? '第一次进门：在服务器上执行 <code>docker logs darkroom</code>，找到初始化码。'
-    : '在服务器上执行 <code>docker exec darkroom node cli.js setup-code</code> 生成一个初始化码。';
   $('#setup-code').focus();
 }
 

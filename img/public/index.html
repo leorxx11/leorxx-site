@@ -33,14 +33,12 @@
   <section class="view login" id="view-login" hidden>
     <h2 class="kicker"><b>进门</b><i>Knock knock</i></h2>
     <div id="login-passkey" hidden>
-      <p>用指纹或面容解锁，不用记口令。</p>
       <button class="btn solid" id="login-btn" type="button">用通行密钥进入</button>
       <p class="aside"><button class="link" id="show-setup" type="button">在新设备上用初始化码绑定</button></p>
     </div>
     <form id="setup-form" hidden novalidate>
-      <p id="setup-hint">第一次进门：在服务器上执行 <code>docker logs darkroom</code>，找到初始化码。</p>
       <div class="field">
-        <input id="setup-code" placeholder="ABCD-EFGH" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" aria-label="初始化码">
+        <input id="setup-code" placeholder="初始化码" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" aria-label="初始化码">
         <button class="btn" type="submit">绑定通行密钥 →</button>
       </div>
       <p class="aside" id="back-login" hidden><button class="link" type="button">← 用已有的通行密钥进入</button></p>

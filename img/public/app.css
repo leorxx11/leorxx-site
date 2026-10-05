@@ -75,7 +75,7 @@ select { cursor: pointer; }
 
 /* ---------- 进门 ---------- */
 .login { max-width: 440px; padding-bottom: 24px; }
-.login p { color: var(--ink-2); }
+#login-passkey, #setup-form { margin-top: 24px; }
 
 /* ---------- 冲洗台 ---------- */
 .drop { position: relative; display: grid; place-items: center; text-align: center; min-height: 220px; padding: 32px 16px; border: 1px dashed var(--ink-3); cursor: pointer; transition: background .2s, border-color .2s; }
