@@ -1,7 +1,7 @@
 // 整站共用的 Service Worker：主页（/）和暗房（/darkroom）合起来是一个 App
 // 页面和脚本网络优先，断网时用缓存打开；接口、图片、机房数据、在线状态一律直连网络，不缓存
 
-const CACHE = 'leorxx-shell-v2';
+const CACHE = 'leorxx-shell-v3';
 const PAGES = ['/', '/darkroom'];
 const BYPASS = ['/api/', '/i/', '/komari/', '/status'];
 
