@@ -88,7 +88,14 @@
   .queue .meta { font-size: 13px; color: var(--ink-3); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .queue .meta.bad { color: var(--accent); font-family: var(--serif-cn); }
   .queue .meta.ok { color: var(--ok); }
-  .queue .acts { display: flex; gap: 14px; font-size: 14px; }
+  .queue .code {
+    margin: 6px 0 0; padding: 7px 10px; background: var(--paper-2); border: 1px solid var(--hair);
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; color: var(--ink);
+    white-space: pre; overflow-x: auto; cursor: text;
+  }
+  .queue .acts { align-self: end; font-size: 14px; padding-bottom: 7px; }
+  .queue .acts .link { white-space: nowrap; }
+  .queue .acts .link.done { color: var(--ok); border-color: var(--ok); }
   .link { background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink-2); border-bottom: 1px solid var(--hair); }
   .link:hover { color: var(--accent); border-color: var(--accent); }
   .progress { height: 2px; background: var(--hair); margin-top: 6px; }
@@ -249,7 +256,13 @@
   $('#logout').addEventListener('click', lock);
 
   // ---------- 选项 ----------
-  const syncFmt = () => document.querySelectorAll('#fmt button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.fmt === fmt));
+  // 切换格式时，已冲洗的记录跟着换成对应格式
+  const syncFmt = () => {
+    document.querySelectorAll('#fmt button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.fmt === fmt));
+    document.querySelectorAll('#queue li[data-url]').forEach((li) => {
+      li.querySelector('.code').textContent = formatLink(li.dataset.url, li.dataset.name);
+    });
+  };
   syncFmt();
   $('#fmt').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
@@ -310,15 +323,29 @@
       meta.textContent = '冲洗中…' + saved;
       const res = await upload(blob, name, (p) => { bar.style.width = (p * 100).toFixed(0) + '%'; });
       li.querySelector('.progress').remove();
+      li.dataset.url = res.url;
+      li.dataset.name = name;
       meta.className = 'meta ok';
-      meta.textContent = abs(res.url);
-      const acts = li.querySelector('.acts');
-      acts.innerHTML = '<button class="link" data-f="url">链接</button><button class="link" data-f="md">MD</button>';
-      acts.addEventListener('click', (e) => {
-        const f = e.target.dataset.f; if (!f) return;
-        const keep = fmt; fmt = f; copy(formatLink(res.url, name)); fmt = keep; toast('已复制');
-      });
-      await copy(formatLink(res.url, name));
+      meta.textContent = '已冲洗' + saved;
+      const code = document.createElement('pre');
+      code.className = 'code';
+      code.textContent = formatLink(res.url, name);
+      meta.after(code);
+
+      const btn = document.createElement('button');
+      btn.className = 'link';
+      btn.textContent = '复制';
+      let resetTimer;
+      const copied = () => {
+        btn.textContent = '已复制 ✓'; btn.classList.add('done');
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => { btn.textContent = '复制'; btn.classList.remove('done'); }, 1600);
+      };
+      btn.addEventListener('click', async () => { await copy(code.textContent); copied(); });
+      li.querySelector('.acts').append(btn);
+
+      await copy(code.textContent);
+      copied();
       toast(`已冲洗，${{ url: '链接', md: 'Markdown', html: 'HTML' }[fmt]} 已复制`);
       offset = 0; $('#sheet').innerHTML = ''; loadSheet();
     } catch (err) {
