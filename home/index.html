@@ -2,7 +2,14 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151412" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Leo's corner">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-180.png">
 <title>Leo's corner</title>
 <meta name="description" content="Leo 的个人站点：探针、图床，以及几个私有小服务。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' fill='%23f3efe6'/><text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-size='46' fill='%23b8361d'>L</text></svg>">
@@ -45,7 +52,7 @@
   }
   a { color: inherit; text-decoration: none; }
   ::selection { background: var(--accent); color: var(--paper); }
-  .page { max-width: 1120px; margin: 0 auto; padding: 0 16px 48px; }
+  .page { max-width: 1120px; margin: 0 auto; padding: 0 max(16px, env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
   @media (min-width: 720px) { .page { padding: 0 40px 64px; } }
 
   /* 报头 */
@@ -261,7 +268,13 @@
   const saved = store.get('theme');
   if (saved) root.dataset.theme = saved;
   const isDark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-  const syncThemeLabel = () => { $('#theme').textContent = isDark() ? '日读模式' : '夜读模式'; };
+  // 手动切换过日夜模式时，装成 App 后的状态栏颜色也跟着变
+  const syncThemeLabel = () => {
+    $('#theme').textContent = isDark() ? '日读模式' : '夜读模式';
+    if (root.dataset.theme) {
+      document.querySelectorAll('meta[name=theme-color]').forEach((m) => { m.content = isDark() ? '#151412' : '#f3efe6'; });
+    }
+  };
   syncThemeLabel();
   $('#theme').addEventListener('click', () => {
     root.dataset.theme = isDark() ? 'light' : 'dark';
@@ -336,6 +349,9 @@
   }
   loadServers();
   setInterval(() => { if (!document.hidden) loadServers(); }, 10000);
+
+  // 注册 Service Worker，让主页能装到桌面 / 主屏幕上当 App 用
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 })();
 </script>
 </body>
