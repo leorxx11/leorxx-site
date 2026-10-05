@@ -110,3 +110,8 @@ window.addEventListener('darkroom:logout', showLogin);
 window.addEventListener('hashchange', route);
 
 showLogin();
+
+// 注册 Service Worker，让暗房能装到主屏幕上当 App 用
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}

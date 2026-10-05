@@ -12,7 +12,10 @@ import * as images from './images.js';
 
 // ---------- 静态页面 ----------
 const PUBLIC_DIR = new URL('../public/', import.meta.url);
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
+const TYPES = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json',
+};
 const PAGE_HEADERS = {
   'content-security-policy': [
     "default-src 'self'",
@@ -30,10 +33,10 @@ const PAGE_HEADERS = {
 };
 
 async function serveStatic(res, file) {
-  if (!/^[\w-]+\.(html|js|css|svg)$/.test(file)) return send(res, 404, 'Not found');
+  if (!/^[\w-]+\.(html|js|css|svg|png|webmanifest)$/.test(file)) return send(res, 404, 'Not found');
   let body;
   try { body = await readFile(new URL(file, PUBLIC_DIR)); } catch { return send(res, 404, 'Not found'); }
-  send(res, 200, body, { ...PAGE_HEADERS, 'content-type': `${TYPES[extname(file)]}; charset=utf-8`, 'cache-control': 'no-cache' });
+  send(res, 200, body, { ...PAGE_HEADERS, 'content-type': TYPES[extname(file)], 'cache-control': 'no-cache' });
 }
 
 // ---------- 主页用的在线检测（只回报通不通，不转发内容）----------
@@ -88,6 +91,8 @@ async function route(req, res) {
 
   if ((method === 'GET' || method === 'HEAD') && path.startsWith('/i/')) return images.handleImage(req, res, path);
   if (method === 'GET' && path === '/') return serveStatic(res, 'index.html');
+  // Service Worker 必须放在根路径，作用范围才是整个站点
+  if (method === 'GET' && (path === '/sw.js' || path === '/manifest.webmanifest')) return serveStatic(res, path.slice(1));
   if (method === 'GET' && path.startsWith('/assets/')) return serveStatic(res, path.slice(8));
 
   // 写操作必须来自本站页面，挡掉跨站请求
