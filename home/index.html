@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/icon-180.png">
 <title>Leo's corner</title>
 <meta name="description" content="Leo 的个人站点：探针、图床，以及几个私有小服务。">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' fill='%23f3efe6'/><text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-size='46' fill='%23b8361d'>L</text></svg>">
+<link rel="icon" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
@@ -135,7 +135,6 @@
   .bar i { display: block; height: 100%; background: var(--ink); width: 0; transition: width .8s ease; }
   .bar i.hot { background: var(--accent); }
   .server .foot { margin-top: 14px; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
-  .note { margin: 10px 0 0; font-size: 13px; color: var(--ink-3); font-style: italic; }
   .server.offline { opacity: .55; }
   .skeleton { padding: 28px 0; color: var(--ink-3); font-style: italic; }
 
@@ -227,7 +226,6 @@
   <section class="section">
     <h2 class="kicker"><b>机房</b><i>The servers</i></h2>
     <div class="servers" id="servers"><div class="skeleton">正在连线机房……</div></div>
-    <p class="note" id="servers-note">数据来自 tz.leorxx.xyz，每 10 秒刷新。</p>
   </section>
 
   <blockquote class="quote">
@@ -330,7 +328,6 @@
       });
       if (!r.ok) throw new Error(r.status);
       const status = (await r.json()).result || {};
-      const online = nodes.filter((n) => status[n.uuid]?.online).length;
       box.innerHTML = nodes.map((n) => {
         const s = status[n.uuid];
         const up = !!s?.online;
@@ -343,7 +340,6 @@
           <div class="foot">${s ? `已运行 ${fmtUptime(s.uptime)}<br>↑ ${fmtBytes(s.net_total_up)} · ↓ ${fmtBytes(s.net_total_down)}` : '暂无数据'}</div>
         </article>`;
       }).join('');
-      $('#servers-note').textContent = `${nodes.length} 台机器，${online} 台在线。数据来自 tz.leorxx.xyz，每 10 秒刷新。`;
     } catch {
       if (!box.querySelector('.server')) box.innerHTML = '<div class="skeleton">暂时连不上机房，稍后再来看看。</div>';
     }
