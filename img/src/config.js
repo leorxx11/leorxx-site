@@ -10,13 +10,16 @@ function required(name) {
   return env[name];
 }
 
-// 页面的完整来源，比如 https://img.leorxx.xyz；本地调试用 http://localhost:3100
+// 页面所在的源（暗房页面在它的 /darkroom 下），比如 https://leorxx.xyz；本地调试用 http://localhost:3100
 const ORIGIN = required('ORIGIN').replace(/\/$/, '');
+// 图片链接用的源。上传的内容放在单独的子域名上，和要登录的页面分开；本地调试时和 ORIGIN 相同
+const IMAGE_ORIGIN = (env.IMAGE_ORIGIN || ORIGIN).replace(/\/$/, '');
 
 export const config = {
   port: Number(env.PORT || 3100),
   host: env.HOST || '127.0.0.1',
   origin: ORIGIN,
+  imageOrigin: IMAGE_ORIGIN,
   secureCookie: ORIGIN.startsWith('https://'),
   // 通行密钥绑定的域名；用上级域名，其他子域名以后也能复用
   rpID: env.RP_ID || new URL(ORIGIN).hostname,

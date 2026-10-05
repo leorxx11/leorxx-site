@@ -13,6 +13,7 @@
     color-scheme: dark;
   }
 }
+@view-transition { navigation: auto; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--serif-cn); font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
 a { color: inherit; }
@@ -26,6 +27,7 @@ kbd { border: 1px solid var(--hair); padding: 0 5px; }
 
 /* ---------- 报头 ---------- */
 .masthead { display: flex; align-items: baseline; gap: 12px 24px; flex-wrap: wrap; padding: 14px 0 10px; font-size: 13px; color: var(--ink-2); letter-spacing: .04em; border-bottom: 3px double var(--rule); }
+.masthead .issue { text-decoration: none; }
 .masthead .home { margin-left: auto; text-decoration: none; border-bottom: 1px solid var(--hair); }
 .masthead .home:hover { color: var(--accent); border-color: var(--accent); }
 .tabs { display: flex; gap: 22px; }

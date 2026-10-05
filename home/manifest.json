@@ -13,5 +13,9 @@
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
     { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "冲洗台", "short_name": "冲洗台", "description": "上传图片", "url": "/darkroom#develop" },
+    { "name": "底片库", "short_name": "底片库", "description": "浏览已上传的图片", "url": "/darkroom#library" }
   ]
 }

@@ -1,6 +1,12 @@
 # 暗房 Darkroom 设计
 
-只给 Leo 一个人用的图床。图片存 Cloudflare R2，服务跑在 oracle_jp 的 docker compose 里，由 Caddy 反代到 `img.leorxx.xyz`。
+只给 Leo 一个人用的图床。图片存 Cloudflare R2，服务跑在 oracle_jp 的 docker compose 里，由 Caddy 反代。
+
+## 地址
+
+- 页面：`leorxx.xyz/darkroom`。和主页同一个源，合起来装成一个 PWA（Leo's corner），Service Worker 和 manifest 由主页提供。
+- 图片：`img.leorxx.xyz/i/...`。上传的内容放在单独的子域名上，和要登录的页面分开；这个域名的其他路径都转到 `/darkroom`。
+- 暗房以前单独跑在 `img.leorxx.xyz`，那边的 `/sw.js` 现在返回一个自我注销的脚本，清掉旧的 Service Worker。
 
 ## 已定的取舍
 

@@ -3,8 +3,8 @@
 个人站点，杂志排版风格。
 
 ```
-home/            主页 leorxx.xyz（纯静态，单个 HTML）
-img/             暗房 img.leorxx.xyz（Node 图床，存储在 Cloudflare R2，设计见 docs/darkroom-design.md）
+home/            主页 leorxx.xyz（纯静态；manifest 和 Service Worker 整站共用）
+img/             暗房 leorxx.xyz/darkroom，图片走 img.leorxx.xyz（Node 图床，存储在 Cloudflare R2，设计见 docs/darkroom-design.md）
   src/             后端：通行密钥登录、上传、底片库、废纸篓、出图、主页用的在线检测
   public/          页面（冲洗台 / 底片库 / 设置）
   cli.js           运维命令：setup-code、reindex

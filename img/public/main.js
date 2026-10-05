@@ -111,7 +111,7 @@ window.addEventListener('hashchange', route);
 
 showLogin();
 
-// 注册 Service Worker，让暗房能装到主屏幕上当 App 用
+// 注册整站共用的 Service Worker（由主页提供），主页和暗房合起来是一个 App
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }

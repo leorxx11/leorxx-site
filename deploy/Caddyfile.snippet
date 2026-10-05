@@ -1,5 +1,6 @@
-# 追加到服务器 /opt/komari-server/Caddyfile（caddy 容器里是 /etc/caddy/Caddyfile）
+# 追加在服务器 /opt/komari-server/Caddyfile 末尾（caddy 容器里是 /etc/caddy/Caddyfile）
 # 主页文件在 /opt/komari-server/static/home，容器里挂载为 /srv/static/home
+# 主页和暗房同在 leorxx.xyz 下，合起来是一个 PWA；图片单独走 img.leorxx.xyz
 
 leorxx.xyz {
 	encode zstd gzip
@@ -24,6 +25,15 @@ leorxx.xyz {
 		reverse_proxy darkroom:3100
 	}
 
+	# 暗房：页面、接口、脚本样式
+	@darkroom path /darkroom /darkroom/ /api/* /assets/*
+	handle @darkroom {
+		request_body {
+			max_size 25MB
+		}
+		reverse_proxy darkroom:3100
+	}
+
 	handle {
 		root * /srv/static/home
 		file_server
@@ -34,9 +44,14 @@ www.leorxx.xyz {
 	redir https://leorxx.xyz{uri} permanent
 }
 
+# 只负责出图；其他地址都转到 leorxx.xyz/darkroom
+# /sw.js 由暗房返回一个自我注销的脚本，清掉以前单独装在这个域名上的 Service Worker
 img.leorxx.xyz {
-	request_body {
-		max_size 25MB
+	@served path /i/* /sw.js
+	handle @served {
+		reverse_proxy darkroom:3100
 	}
-	reverse_proxy darkroom:3100
+	handle {
+		redir https://leorxx.xyz/darkroom 302
+	}
 }

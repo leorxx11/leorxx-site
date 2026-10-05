@@ -31,8 +31,8 @@ const intOrNull = (v) => (Number.isInteger(Number(v)) && Number(v) > 0 ? Number(
 function toApi(row) {
   return {
     id: row.id,
-    url: `/i/${row.key}`,
-    thumb: `/i/${row.thumb_key || row.key}`,
+    url: `${config.imageOrigin}/i/${row.key}`,
+    thumb: `${config.imageOrigin}/i/${row.thumb_key || row.key}`,
     name: row.name,
     mime: row.mime,
     size: row.size,
