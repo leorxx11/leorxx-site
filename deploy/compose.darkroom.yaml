@@ -1,0 +1,9 @@
+# 追加到服务器 /opt/komari-server/docker-compose.yaml 的 services 下
+# 不映射端口：只有同网络的 caddy 能访问 darkroom:3100
+  darkroom:
+    build: /srv/leorxx/img
+    container_name: darkroom
+    restart: unless-stopped
+    env_file: /srv/leorxx/img/.env
+    environment:
+      HOST: 0.0.0.0

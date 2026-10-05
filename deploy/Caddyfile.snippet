@@ -1,0 +1,42 @@
+# 追加到服务器 /opt/komari-server/Caddyfile（caddy 容器里是 /etc/caddy/Caddyfile）
+# 主页文件在 /opt/komari-server/static/home，容器里挂载为 /srv/static/home
+
+leorxx.xyz {
+	encode zstd gzip
+
+	# 主页读 Komari 的数据，走内网同源转发，绕开 Komari 的跨域检查
+	handle /komari/nodes {
+		rewrite * /api/nodes
+		reverse_proxy komari:25774 {
+			header_up -Origin
+		}
+	}
+	handle /komari/rpc2 {
+		rewrite * /api/rpc2
+		reverse_proxy komari:25774 {
+			header_up -Origin
+		}
+	}
+
+	# 目录里的在线状态，由暗房后端在服务器端探测
+	handle /status {
+		rewrite * /api/status
+		reverse_proxy darkroom:3100
+	}
+
+	handle {
+		root * /srv/static/home
+		file_server
+	}
+}
+
+www.leorxx.xyz {
+	redir https://leorxx.xyz{uri} permanent
+}
+
+img.leorxx.xyz {
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy darkroom:3100
+}

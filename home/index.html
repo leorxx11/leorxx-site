@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leo's corner</title>
+<meta name="description" content="Leo 的个人站点：探针、图床，以及几个私有小服务。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' fill='%23f3efe6'/><text x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-size='46' fill='%23b8361d'>L</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f3efe6;
+    --paper-2: #ebe5d8;
+    --ink: #1b1a17;
+    --ink-2: #57534b;
+    --ink-3: #8c867a;
+    --rule: #1b1a17;
+    --hair: #cfc7b6;
+    --accent: #b8361d;
+    --ok: #3d7a2e;
+    --bad: #b8361d;
+    --serif-cn: "Noto Serif SC", "Songti SC", "STSong", serif;
+    --serif-en: "Playfair Display", Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #151412; --paper-2: #1d1c19; --ink: #ece6da; --ink-2: #b3ab9c; --ink-3: #7c7568;
+      --rule: #ece6da; --hair: #38352f; --accent: #e0674b; --ok: #8cc06f; --bad: #e0674b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #151412; --paper-2: #1d1c19; --ink: #ece6da; --ink-2: #b3ab9c; --ink-3: #7c7568;
+    --rule: #ece6da; --hair: #38352f; --accent: #e0674b; --ok: #8cc06f; --bad: #e0674b;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--serif-cn); font-size: 17px; line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: var(--accent); color: var(--paper); }
+  .page { max-width: 1120px; margin: 0 auto; padding: 0 16px 48px; }
+  @media (min-width: 720px) { .page { padding: 0 40px 64px; } }
+
+  /* 报头 */
+  .masthead {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
+    padding: 14px 0 10px; font-size: 13px; color: var(--ink-2); letter-spacing: .04em;
+    border-bottom: 3px double var(--rule);
+  }
+  .masthead .mid { font-family: var(--serif-en); font-style: italic; font-size: 15px; color: var(--ink); }
+  .masthead .right { text-align: right; }
+  @media (max-width: 560px) { .masthead { grid-template-columns: 1fr 1fr; } .masthead .mid { display: none; } }
+
+  /* 刊头 */
+  .hero { display: grid; gap: 24px; padding: 40px 0 36px; border-bottom: 1px solid var(--rule); }
+  @media (min-width: 880px) { .hero { grid-template-columns: 1.7fr 1fr; align-items: end; gap: 48px; padding: 64px 0 48px; } }
+  .title {
+    margin: 0; font-family: var(--serif-en); font-weight: 700;
+    font-size: clamp(64px, 15vw, 176px); line-height: .86; letter-spacing: -.03em;
+  }
+  .title em { font-weight: 400; color: var(--accent); }
+  .deck { margin: 0; font-size: 18px; color: var(--ink-2); max-width: 30em; }
+  .deck::first-letter { font-family: var(--serif-cn); font-weight: 900; font-size: 3.1em; float: left; line-height: .9; margin: .08em .1em 0 0; color: var(--ink); }
+  .byline { margin: 16px 0 0; font-size: 13px; color: var(--ink-3); letter-spacing: .06em; }
+
+  /* 栏目标题 */
+  .section { padding-top: 44px; }
+  .kicker {
+    display: flex; align-items: baseline; gap: 14px; margin: 0 0 8px;
+    font-size: 13px; letter-spacing: .2em; color: var(--ink-2);
+  }
+  .kicker b { font-weight: 600; color: var(--ink); letter-spacing: .3em; }
+  .kicker i { font-family: var(--serif-en); letter-spacing: .02em; font-size: 15px; }
+  .kicker::after { content: ""; flex: 1; border-bottom: 1px solid var(--rule); transform: translateY(-4px); }
+
+  /* 目录 */
+  .toc { list-style: none; margin: 0; padding: 0; }
+  .toc li { border-bottom: 1px solid var(--hair); }
+  .toc a {
+    display: grid; grid-template-columns: 64px 1fr auto; gap: 4px 16px; align-items: baseline;
+    padding: 20px 4px; transition: background .2s, padding .25s;
+  }
+  @media (min-width: 720px) { .toc a { grid-template-columns: 96px 1fr 220px 150px 28px; padding: 26px 8px; } }
+  .toc a:hover { background: var(--paper-2); padding-left: 16px; }
+  .no { font-family: var(--serif-en); font-style: italic; font-size: 40px; line-height: 1; color: var(--accent); }
+  @media (min-width: 720px) { .no { font-size: 52px; } }
+  .entry h3 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.3; }
+  .entry h3 span { font-family: var(--serif-en); font-style: italic; font-weight: 400; font-size: 18px; color: var(--ink-3); margin-left: 8px; }
+  .entry p { margin: 4px 0 0; font-size: 15px; color: var(--ink-2); }
+  .domain { font-family: var(--mono); font-size: 13px; color: var(--ink-3); }
+  .status { font-size: 13px; color: var(--ink-3); white-space: nowrap; }
+  .status .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); margin-right: 7px; transform: translateY(-1px); }
+  .status.ok { color: var(--ok); } .status.ok .dot { background: var(--ok); }
+  .status.bad { color: var(--bad); } .status.bad .dot { background: var(--bad); }
+  .arrow { font-family: var(--serif-en); font-size: 22px; color: var(--ink-3); transition: transform .25s, color .25s; }
+  .toc a:hover .arrow { transform: translateX(4px); color: var(--accent); }
+  .private { font-size: 12px; letter-spacing: .12em; color: var(--ink-3); border: 1px solid var(--hair); padding: 0 6px; margin-left: 8px; vertical-align: 3px; }
+  @media (max-width: 719px) {
+    .toc .no { grid-row: span 3; }
+    .toc .domain, .toc .status { grid-column: 2 / 4; }
+    .toc .arrow { grid-column: 3; grid-row: 1; }
+  }
+
+  /* 机房 */
+  .servers { display: grid; grid-template-columns: 1fr; border-bottom: 1px solid var(--rule); }
+  @media (min-width: 720px) { .servers { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+  .server { padding: 20px 0 24px; border-bottom: 1px solid var(--hair); }
+  .server:last-child { border-bottom: 0; }
+  @media (min-width: 720px) {
+    .server { padding: 22px 24px 26px; border-bottom: 0; border-left: 1px solid var(--hair); }
+    .server:first-child { border-left: 0; padding-left: 0; }
+  }
+  .server h4 { margin: 0; font-size: 20px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
+  .server .os { margin: 2px 0 14px; font-size: 13px; color: var(--ink-3); }
+  .server .state { font-size: 12px; font-weight: 400; margin-left: auto; }
+  .meter { margin: 10px 0 0; font-size: 14px; }
+  .meter .row { display: flex; justify-content: space-between; color: var(--ink-2); }
+  .meter .row b { font-family: var(--serif-en); font-weight: 400; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .bar { height: 2px; background: var(--hair); margin-top: 4px; }
+  .bar i { display: block; height: 100%; background: var(--ink); width: 0; transition: width .8s ease; }
+  .bar i.hot { background: var(--accent); }
+  .server .foot { margin-top: 14px; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .note { margin: 10px 0 0; font-size: 13px; color: var(--ink-3); font-style: italic; }
+  .server.offline { opacity: .55; }
+  .skeleton { padding: 28px 0; color: var(--ink-3); font-style: italic; }
+
+  /* 编者按 */
+  .quote { margin: 0; padding: 48px 0 8px; text-align: center; }
+  .quote p { margin: 0; font-size: clamp(28px, 5vw, 44px); font-weight: 900; line-height: 1.3; }
+  .quote p::before, .quote p::after { font-family: var(--serif-en); color: var(--accent); font-weight: 400; }
+  .quote p::before { content: "“"; } .quote p::after { content: "”"; }
+  .quote cite { display: block; margin-top: 12px; font-style: normal; font-size: 13px; letter-spacing: .2em; color: var(--ink-3); }
+
+  /* 版权页 */
+  .colophon {
+    margin-top: 56px; padding-top: 14px; border-top: 3px double var(--rule);
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px;
+    font-size: 13px; color: var(--ink-3);
+  }
+  .colophon button {
+    font: inherit; color: var(--ink-2); background: none; border: 0; padding: 0; cursor: pointer;
+    border-bottom: 1px solid var(--hair);
+  }
+  .colophon button:hover { color: var(--accent); border-color: var(--accent); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
+    .reveal:nth-child(2) { animation-delay: .08s; } .reveal:nth-child(3) { animation-delay: .16s; } .reveal:nth-child(4) { animation-delay: .24s; }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <span id="issue">第 — 期</span>
+    <span class="mid">Leo's corner — a small server journal</span>
+    <span class="right" id="today"></span>
+  </header>
+
+  <section class="hero">
+    <h1 class="title reveal">Leo's<br><em>corner.</em></h1>
+    <div class="reveal">
+      <p class="deck">几台散落在大阪、洛杉矶和水牛城的服务器，和跑在上面的几个小东西。慢慢折腾，偶尔更新，能跑就行。</p>
+      <p class="byline">主编 · 运维 · 唯一读者 —— Leo</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="kicker"><b>目录</b><i>Contents</i></h2>
+    <ol class="toc">
+      <li class="reveal">
+        <a href="https://tz.leorxx.xyz" data-svc="tz">
+          <span class="no">01</span>
+          <div class="entry"><h3>探针<span>Monitor</span></h3><p>所有机器的负载、流量和三网延迟，一眼看完。</p></div>
+          <span class="domain">tz.leorxx.xyz</span>
+          <span class="status"><span class="dot"></span>检测中</span>
+          <span class="arrow">→</span>
+        </a>
+      </li>
+      <li class="reveal">
+        <a href="https://img.leorxx.xyz" data-svc="img">
+          <span class="no">02</span>
+          <div class="entry"><h3>暗房<span>Darkroom</span></h3><p>自建图床。把照片丢进去，冲洗成一条链接。</p></div>
+          <span class="domain">img.leorxx.xyz</span>
+          <span class="status"><span class="dot"></span>检测中</span>
+          <span class="arrow">→</span>
+        </a>
+      </li>
+      <li class="reveal">
+        <a href="https://st.leorxx.xyz" data-svc="st">
+          <span class="no">03</span>
+          <div class="entry"><h3>酒馆<em class="private">私有</em><span>Tavern</span></h3><p>SillyTavern。深夜营业，仅限熟客。</p></div>
+          <span class="domain">st.leorxx.xyz</span>
+          <span class="status"><span class="dot"></span>检测中</span>
+          <span class="arrow">→</span>
+        </a>
+      </li>
+      <li class="reveal">
+        <a href="https://ci.leorxx.xyz" data-svc="ci">
+          <span class="no">04</span>
+          <div class="entry"><h3>流水线<em class="private">私有</em><span>CI</span></h3><p>构建、测试、部署。绿了就睡觉，红了就起床。</p></div>
+          <span class="domain">ci.leorxx.xyz</span>
+          <span class="status"><span class="dot"></span>检测中</span>
+          <span class="arrow">→</span>
+        </a>
+      </li>
+    </ol>
+  </section>
+
+  <section class="section">
+    <h2 class="kicker"><b>机房</b><i>The servers</i></h2>
+    <div class="servers" id="servers"><div class="skeleton">正在连线机房……</div></div>
+    <p class="note" id="servers-note">数据来自 tz.leorxx.xyz，每 10 秒刷新。</p>
+  </section>
+
+  <blockquote class="quote">
+    <p id="motto">能跑就别动。</p>
+    <cite>—— 编者按</cite>
+  </blockquote>
+
+  <footer class="colophon">
+    <span>本刊由 Caddy 印刷，Komari 校对 · 字体 Noto Serif SC 与 Playfair Display</span>
+    <span><button type="button" id="theme">夜读模式</button> · © <span id="year"></span> leorxx</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+
+  // ---- 报头：期数（ISO 周）、日期、季节 ----
+  const now = new Date();
+  const isoWeek = (d) => {
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const day = t.getUTCDay() || 7;
+    t.setUTCDate(t.getUTCDate() + 4 - day);
+    return Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7);
+  };
+  const season = ['冬', '冬', '春', '春', '春', '夏', '夏', '夏', '秋', '秋', '秋', '冬'][now.getMonth()];
+  $('#issue').textContent = `第 ${isoWeek(now)} 期 · ${now.getFullYear()} ${season}`;
+  $('#today').textContent = `${now.getMonth() + 1} 月 ${now.getDate()} 日 · 星期${'日一二三四五六'[now.getDay()]}`;
+  $('#year').textContent = now.getFullYear();
+
+  // ---- 编者按 ----
+  const mottos = ['能跑就别动。', '备份做了吗？', '今天也没有挂。', '先重启试试。', '日志会说实话。', '没有监控，就没有睡眠。'];
+  $('#motto').textContent = mottos[Math.floor(Math.random() * mottos.length)];
+
+  // ---- 夜读模式 ----
+  const root = document.documentElement;
+  const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+                  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+  const saved = store.get('theme');
+  if (saved) root.dataset.theme = saved;
+  const isDark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const syncThemeLabel = () => { $('#theme').textContent = isDark() ? '日读模式' : '夜读模式'; };
+  syncThemeLabel();
+  $('#theme').addEventListener('click', () => {
+    root.dataset.theme = isDark() ? 'light' : 'dark';
+    store.set('theme', root.dataset.theme);
+    syncThemeLabel();
+  });
+
+  // ---- 目录：在线检测 ----
+  // 由服务器端探测（见 img/server.js 的 /api/status），浏览器跨站探测会被 CORP 等响应头挡住
+  async function checkServices() {
+    let data = null;
+    try {
+      const r = await fetch('/status', { cache: 'no-store' });
+      if (r.ok) data = await r.json();
+    } catch {}
+    document.querySelectorAll('[data-svc]').forEach((a) => {
+      const s = data?.[a.dataset.svc];
+      const el = $('.status', a);
+      if (!s) { el.className = 'status'; el.innerHTML = '<span class="dot"></span>状态未知'; return; }
+      el.className = s.up ? 'status ok' : 'status bad';
+      el.innerHTML = s.up ? `<span class="dot"></span>在线${s.ms ? ` · ${s.ms}ms` : ''}` : '<span class="dot"></span>无响应';
+    });
+  }
+  checkServices();
+  setInterval(() => { if (!document.hidden) checkServices(); }, 60000);
+
+  // ---- 机房：Komari ----
+  const GB = 1024 ** 3;
+  const fmtBytes = (b) => b >= 1024 ** 4 ? (b / 1024 ** 4).toFixed(2) + ' TB' : b >= GB ? (b / GB).toFixed(1) + ' GB' : (b / 1024 ** 2).toFixed(0) + ' MB';
+  const fmtUptime = (s) => {
+    const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+    return d ? `${d} 天 ${h} 小时` : h ? `${h} 小时 ${m} 分` : `${m} 分钟`;
+  };
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const pct = (a, b) => b > 0 ? Math.min(100, a / b * 100) : 0;
+  const meter = (label, value, p) => `
+    <div class="meter"><div class="row"><span>${label}</span><b>${value}</b></div>
+    <div class="bar"><i class="${p >= 80 ? 'hot' : ''}" style="width:${p.toFixed(1)}%"></i></div></div>`;
+
+  let nodes = null;
+  async function loadServers() {
+    const box = $('#servers');
+    try {
+      if (!nodes) {
+        const r = await fetch('/komari/nodes', { cache: 'no-store' });
+        if (!r.ok) throw new Error(r.status);
+        nodes = (await r.json()).data.filter((n) => !n.hidden).sort((a, b) => (a.weight ?? 0) - (b.weight ?? 0));
+      }
+      const r = await fetch('/komari/rpc2', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'common:getNodesLatestStatus', id: 1 }),
+      });
+      if (!r.ok) throw new Error(r.status);
+      const status = (await r.json()).result || {};
+      const online = nodes.filter((n) => status[n.uuid]?.online).length;
+      box.innerHTML = nodes.map((n) => {
+        const s = status[n.uuid];
+        const up = !!s?.online;
+        return `<article class="server ${up ? '' : 'offline'}">
+          <h4>${esc(n.region)} ${esc(n.name)}<span class="status state ${up ? 'ok' : 'bad'}"><span class="dot"></span>${up ? '在线' : '离线'}</span></h4>
+          <p class="os">${esc(n.os)} · ${esc(n.arch)} · ${n.cpu_cores} 核</p>
+          ${s ? meter('处理器', `${s.cpu.toFixed(1)}%`, s.cpu) : ''}
+          ${s ? meter('内存', `${fmtBytes(s.ram)} / ${fmtBytes(s.ram_total)}`, pct(s.ram, s.ram_total)) : ''}
+          ${s ? meter('磁盘', `${fmtBytes(s.disk)} / ${fmtBytes(s.disk_total)}`, pct(s.disk, s.disk_total)) : ''}
+          <div class="foot">${s ? `已运行 ${fmtUptime(s.uptime)}<br>↑ ${fmtBytes(s.net_total_up)} · ↓ ${fmtBytes(s.net_total_down)}` : '暂无数据'}</div>
+        </article>`;
+      }).join('');
+      $('#servers-note').textContent = `${nodes.length} 台机器，${online} 台在线。数据来自 tz.leorxx.xyz，每 10 秒刷新。`;
+    } catch {
+      if (!box.querySelector('.server')) box.innerHTML = '<div class="skeleton">暂时连不上机房，稍后再来看看。</div>';
+    }
+  }
+  loadServers();
+  setInterval(() => { if (!document.hidden) loadServers(); }, 10000);
+})();
+</script>
+</body>
+</html>

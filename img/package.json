@@ -1,0 +1,13 @@
+{
+  "name": "leorxx-darkroom",
+  "private": true,
+  "type": "module",
+  "description": "暗房：基于 Cloudflare R2 的个人图床",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node --env-file=.env server.js"
+  },
+  "dependencies": {
+    "aws4fetch": "^1.0.20"
+  }
+}
