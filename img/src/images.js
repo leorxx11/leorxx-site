@@ -1,10 +1,10 @@
 // 图片：上传、列表、废纸篓、出图、从 R2 重建索引
 
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { config } from './config.js';
 import { db, tx } from './db.js';
-import { requireSession } from './auth.js';
+import { requireApiToken, requireSession } from './auth.js';
 import { HttpError, readBody, readJson, send } from './http.js';
 import { deleteObject, getObject, headMeta, listAll, putObject } from './r2.js';
 
@@ -59,7 +59,17 @@ function parseIds(body) {
 // ---------- 上传 ----------
 export async function handleUpload(req, res) {
   requireSession(req, res);
-  const sourceHash = /^[0-9a-f]{64}$/.test(req.headers['x-source-hash'] || '') ? req.headers['x-source-hash'] : null;
+  return ingest(req, res);
+}
+
+// 给后端程序用：Authorization: Bearer 令牌，请求体是图片原始字节，服务器自己算哈希查重
+export async function handleApiUpload(req, res) {
+  requireApiToken(req);
+  return ingest(req, res, { hashBody: true });
+}
+
+async function ingest(req, res, { hashBody = false } = {}) {
+  let sourceHash = /^[0-9a-f]{64}$/.test(req.headers['x-source-hash'] || '') ? req.headers['x-source-hash'] : null;
   if (sourceHash) {
     const dup = getActiveByHash(sourceHash);
     if (dup) { req.resume(); return send(res, 200, { image: toApi(dup), duplicate: true }); }
@@ -68,6 +78,11 @@ export async function handleUpload(req, res) {
   const buf = await readBody(req, config.maxBytes);
   const kind = sniff(buf);
   if (!kind) throw new HttpError(415, '只收 PNG、JPEG、GIF、WebP、AVIF');
+  if (hashBody && !sourceHash) {
+    sourceHash = createHash('sha256').update(buf).digest('hex');
+    const dup = getActiveByHash(sourceHash);
+    if (dup) return send(res, 200, { image: toApi(dup), duplicate: true });
+  }
   const rawName = String(req.headers['x-filename'] || '');
   let name;
   try { name = decodeURIComponent(rawName); } catch { name = rawName; }

@@ -15,7 +15,7 @@
 | 登录 | 通行密钥（Passkey），不再有口令 |
 | 删除 | 先进废纸篓，30 天后自动彻底删除 |
 | 相册 / 标签 | 第一版不做 |
-| PicGo / PicList 等客户端 | 不支持，只用网页上传 |
+| PicGo / PicList 等客户端 | 不支持，网页上传；自己的后端程序用 API 令牌上传（见下） |
 
 ## 登录
 
@@ -133,3 +133,24 @@ img/
 ## 以后再说
 
 相册与标签、粘贴网址抓图、防盗链、服务器端本地缓存、主页展示「最近冲洗」。
+
+## 给后端程序上传（API 令牌）
+
+令牌只能上传，不能列表或删除。在服务器上生成，库里只存哈希：
+
+```
+docker exec darkroom node cli.js token-create 我的项目   # 只显示一次
+docker exec darkroom node cli.js token-list
+docker exec darkroom node cli.js token-revoke 我的项目
+```
+
+上传：请求体直接是图片字节，`X-Filename` 可选。服务器自己算哈希，同一张图重复传会返回已有的链接（`duplicate: true`）。
+
+```
+curl -X POST https://leorxx.xyz/api/v1/upload \
+  -H "Authorization: Bearer dr_xxx" -H "X-Filename: a.png" \
+  --data-binary @a.png
+# → {"image":{"url":"https://img.leorxx.xyz/i/2026/10/xxx.png", ...}}
+```
+
+把返回的 `image.url` 存起来，页面里直接 `<img src>`。服务器不转码、不生成缩略图，传前自己压好。错误令牌每个 IP 10 分钟内最多试 20 次。

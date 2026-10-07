@@ -113,6 +113,32 @@ export function requireSession(req, res) {
   return s;
 }
 
+// ---------- API 令牌（给自己的后端程序上传用，只能上传）----------
+const tokenLimiter = rateLimiter({ max: 20, window: 10 * 60e3 });
+
+export function createApiToken(name) {
+  const token = `dr_${b64url(randomBytes(32))}`;
+  db.prepare('INSERT INTO api_tokens (token_hash, name, created_at) VALUES (?, ?, ?)').run(sha256(token), name, Date.now());
+  return token;
+}
+
+export const listApiTokens = () => db.prepare('SELECT name, created_at, last_used_at FROM api_tokens ORDER BY created_at').all();
+
+export const revokeApiToken = (name) => Number(db.prepare('DELETE FROM api_tokens WHERE name = ?').run(name).changes);
+
+export function requireApiToken(req) {
+  const ip = clientIp(req);
+  tokenLimiter.check(ip);
+  const token = (req.headers.authorization || '').match(/^Bearer (\S+)$/)?.[1];
+  const hash = token && sha256(token);
+  const row = hash && db.prepare('SELECT 1 FROM api_tokens WHERE token_hash = ?').get(hash);
+  if (!row) {
+    tokenLimiter.add(ip);
+    throw new HttpError(401, '令牌无效');
+  }
+  db.prepare('UPDATE api_tokens SET last_used_at = ? WHERE token_hash = ?').run(Date.now(), hash);
+}
+
 // ---------- 挑战（注册 / 登录过程中的一次性随机数）----------
 const challenges = new Map(); // id -> { challenge, kind, expires, setupHash }
 

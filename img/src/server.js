@@ -112,6 +112,9 @@ async function route(req, res) {
   if (method === 'GET' && path === '/sw.js') return serveRetiredWorker(req, res);
   if (method === 'GET' && path.startsWith('/assets/')) return serveStatic(res, path.slice(8));
 
+  // 后端程序用令牌上传，没有浏览器的 Origin
+  if (method === 'POST' && path === '/api/v1/upload') return images.handleApiUpload(req, res);
+
   // 写操作必须来自本站页面，挡掉跨站请求
   if (!['GET', 'HEAD'].includes(method) && req.headers.origin !== config.origin) {
     throw new HttpError(403, '来源不对');

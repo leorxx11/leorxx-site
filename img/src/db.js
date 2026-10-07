@@ -49,6 +49,13 @@ db.exec(`
     user_agent TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS api_tokens (
+    token_hash   TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    created_at   INTEGER NOT NULL,
+    last_used_at INTEGER
+  );
+
   CREATE TABLE IF NOT EXISTS meta (
     k TEXT PRIMARY KEY,
     v TEXT
