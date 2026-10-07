@@ -82,12 +82,21 @@ export function setFmt(f) {
   store.set('darkroom-fmt', f);
   fmtListeners.forEach((fn) => fn(f));
 }
-export function formatLink(url, name, f = fmt) {
+// 图片出 ![]() / <img>，其他文件出 []() / <a>
+export function formatLink({ url, name, kind = 'image' }, f = fmt) {
   url = abs(url);
+  if (kind !== 'image') {
+    if (f === 'md') return `[${(name || 'file').replace(/[[\]]/g, '')}](${url})`;
+    if (f === 'html') return `<a href="${url}">${escAttr(name || 'file')}</a>`;
+    return url;
+  }
   if (f === 'md') return `![${stem(name)}](${url})`;
   if (f === 'html') return `<img src="${url}" alt="${escAttr(stem(name))}">`;
   return url;
 }
+
+// 文件的扩展名，用作没有缩略图时的标签
+export const extLabel = (name) => (String(name || '').match(/\.([a-z0-9]{1,6})$/i)?.[1] || 'file').toUpperCase();
 
 // 一组「链接 / Markdown / HTML」切换按钮，返回取消监听的函数
 export function fmtSwitch(container) {

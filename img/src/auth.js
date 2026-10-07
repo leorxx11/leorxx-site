@@ -113,16 +113,19 @@ export function requireSession(req, res) {
   return s;
 }
 
-// ---------- API 令牌（给自己的后端程序上传用，只能上传）----------
+// ---------- API 令牌（给自己的后端程序和 AI 用）----------
+// upload：上传；read：列出、搜索文件。都不能删除
+export const TOKEN_SCOPES = ['upload', 'read'];
 const tokenLimiter = rateLimiter({ max: 20, window: 10 * 60e3 });
 
-export function createApiToken(name) {
+export function createApiToken(name, scopes = ['upload']) {
   const token = `dr_${b64url(randomBytes(32))}`;
-  db.prepare('INSERT INTO api_tokens (token_hash, name, created_at) VALUES (?, ?, ?)').run(sha256(token), name, Date.now());
+  db.prepare('INSERT INTO api_tokens (token_hash, name, scopes, created_at) VALUES (?, ?, ?, ?)')
+    .run(sha256(token), name, scopes.join(','), Date.now());
   return token;
 }
 
-export const listApiTokens = () => db.prepare('SELECT substr(token_hash, 1, 12) AS id, name, created_at, last_used_at FROM api_tokens ORDER BY created_at').all();
+export const listApiTokens = () => db.prepare('SELECT substr(token_hash, 1, 12) AS id, name, scopes, created_at, last_used_at FROM api_tokens ORDER BY created_at').all();
 
 export const revokeApiToken = (name) => Number(db.prepare('DELETE FROM api_tokens WHERE name = ?').run(name).changes);
 
@@ -133,11 +136,13 @@ export function handleListTokens(req, res) {
 
 export async function handleCreateToken(req, res) {
   requireSession(req, res);
-  const { name } = await readJson(req);
+  const { name, scopes } = await readJson(req);
   const clean = String(name || '').trim().slice(0, 40);
   if (!clean) throw new HttpError(400, '给令牌起个名字');
+  const picked = TOKEN_SCOPES.filter((s) => Array.isArray(scopes) && scopes.includes(s));
+  if (!picked.length) throw new HttpError(400, '至少选一项权限');
   if (listApiTokens().length >= 20) throw new HttpError(400, '令牌最多 20 个，先删掉不用的');
-  send(res, 200, { token: createApiToken(clean) });
+  send(res, 200, { token: createApiToken(clean, picked) });
 }
 
 export function handleDeleteToken(req, res, id) {
@@ -147,16 +152,17 @@ export function handleDeleteToken(req, res, id) {
   send(res, 200, { ok: true });
 }
 
-export function requireApiToken(req) {
+export function requireApiToken(req, scope) {
   const ip = clientIp(req);
   tokenLimiter.check(ip);
   const token = (req.headers.authorization || '').match(/^Bearer (\S+)$/)?.[1];
   const hash = token && sha256(token);
-  const row = hash && db.prepare('SELECT 1 FROM api_tokens WHERE token_hash = ?').get(hash);
+  const row = hash && db.prepare('SELECT scopes FROM api_tokens WHERE token_hash = ?').get(hash);
   if (!row) {
     tokenLimiter.add(ip);
     throw new HttpError(401, '令牌无效');
   }
+  if (!row.scopes.split(',').includes(scope)) throw new HttpError(403, `这个令牌没有 ${scope} 权限`);
   db.prepare('UPDATE api_tokens SET last_used_at = ? WHERE token_hash = ?').run(Date.now(), hash);
 }
 

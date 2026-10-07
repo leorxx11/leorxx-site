@@ -62,6 +62,11 @@ db.exec(`
   );
 `);
 
+// 老库补列：令牌权限（upload / read，逗号分隔）
+if (!db.prepare('PRAGMA table_info(api_tokens)').all().some((c) => c.name === 'scopes')) {
+  db.exec("ALTER TABLE api_tokens ADD COLUMN scopes TEXT NOT NULL DEFAULT 'upload'");
+}
+
 export function getMeta(k) {
   return db.prepare('SELECT v FROM meta WHERE k = ?').get(k)?.v ?? null;
 }

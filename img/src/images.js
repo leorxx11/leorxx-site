@@ -1,4 +1,4 @@
-// 图片：上传、列表、废纸篓、出图、从 R2 重建索引
+// 图片和文件：上传、列表、废纸篓、出图、从 R2 重建索引
 
 import { createHash, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
@@ -24,15 +24,47 @@ function sniff(b) {
   return null;
 }
 
+// 图片以外的文件按扩展名定出图类型，不信任客户端给的 Content-Type。
+// 文本一律当 text/plain 出（HTML、SVG、JS 也是），浏览器不会执行；认不出的一律下载
+const TEXT_EXTS = new Set(`txt md markdown mdx csv tsv json jsonl ndjson yaml yml toml ini conf cfg env log xml html htm svg
+  css scss less js mjs cjs ts tsx jsx vue svelte py ipynb rb go rs java kt kts swift c h cc cpp hpp cs m php pl sh bash zsh fish ps1 bat
+  sql graphql proto r jl lua dart scala ex exs erl hs clj tex bib srt vtt diff patch rst adoc org`.split(/\s+/));
+const MEDIA_TYPES = {
+  pdf: 'application/pdf',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac',
+  mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+};
+const extOf = (name) => (name.match(/\.([a-z0-9]{1,10})$/i)?.[1] || '').toLowerCase();
+
+function classify(name, buf) {
+  const img = sniff(buf);
+  if (img) return img;
+  const ext = extOf(name);
+  if (TEXT_EXTS.has(ext)) return { type: 'text/plain', ext };
+  if (MEDIA_TYPES[ext]) return { type: MEDIA_TYPES[ext], ext };
+  return { type: 'application/octet-stream', ext: ext || 'bin' };
+}
+
+export function kindOf(mime) {
+  if (mime.startsWith('image/')) return 'image';
+  if (mime === 'text/plain') return 'text';
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime.startsWith('audio/')) return 'audio';
+  if (mime.startsWith('video/')) return 'video';
+  return 'other';
+}
+
 const thumbKeyFor = (key) => `thumbs/${key.replace(/\.[^./]+$/, '')}.webp`;
 const validKey = (key) => /^[\w\-./]{1,200}$/.test(key) && !key.includes('..') && !key.startsWith('/');
 const intOrNull = (v) => (Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : null);
 
 function toApi(row) {
+  const kind = kindOf(row.mime);
   return {
     id: row.id,
+    kind,
     url: `${config.imageOrigin}/i/${row.key}`,
-    thumb: `${config.imageOrigin}/i/${row.thumb_key || row.key}`,
+    thumb: kind === 'image' ? `${config.imageOrigin}/i/${row.thumb_key || row.key}` : null,
     name: row.name,
     mime: row.mime,
     size: row.size,
@@ -62,9 +94,9 @@ export async function handleUpload(req, res) {
   return ingest(req, res);
 }
 
-// 给后端程序用：Authorization: Bearer 令牌，请求体是图片原始字节，服务器自己算哈希查重
+// 给后端程序用：Authorization: Bearer 令牌，请求体是文件原始字节，服务器自己算哈希查重
 export async function handleApiUpload(req, res) {
-  requireApiToken(req);
+  requireApiToken(req, 'upload');
   return ingest(req, res, { hashBody: true });
 }
 
@@ -75,22 +107,27 @@ async function ingest(req, res, { hashBody = false } = {}) {
     if (dup) { req.resume(); return send(res, 200, { image: toApi(dup), duplicate: true }); }
   }
 
-  const buf = await readBody(req, config.maxBytes);
-  const kind = sniff(buf);
-  if (!kind) throw new HttpError(415, '只收 PNG、JPEG、GIF、WebP、AVIF');
-  if (hashBody && !sourceHash) {
-    sourceHash = createHash('sha256').update(buf).digest('hex');
-    const dup = getActiveByHash(sourceHash);
-    if (dup) return send(res, 200, { image: toApi(dup), duplicate: true });
-  }
+  const buf = await readBody(req, Math.max(config.maxBytes, config.maxFileBytes));
   const rawName = String(req.headers['x-filename'] || '');
   let name;
   try { name = decodeURIComponent(rawName); } catch { name = rawName; }
   name = name.slice(0, 200);
 
+  const kind = classify(name, buf);
+  const isImage = kind.type.startsWith('image/');
+  const limit = isImage ? config.maxBytes : config.maxFileBytes;
+  if (buf.length > limit) throw new HttpError(413, `${isImage ? '图片' : '文件'}超过 ${Math.round(limit / 1024 / 1024)} MB`);
+  if (!buf.length) throw new HttpError(400, '文件是空的');
+  if (hashBody && !sourceHash) {
+    sourceHash = createHash('sha256').update(buf).digest('hex');
+    const dup = getActiveByHash(sourceHash);
+    if (dup) return send(res, 200, { image: toApi(dup), duplicate: true });
+  }
+
   const now = Date.now();
   const d = new Date(now + 8 * 3600e3); // 北京时间的年月
-  const id = now.toString(36) + randomBytes(3).toString('hex');
+  // 文件的链接就是访问凭证，用 128 位随机串，猜不到
+  const id = isImage ? now.toString(36) + randomBytes(3).toString('hex') : randomBytes(16).toString('base64url');
   const key = `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${id}.${kind.ext}`;
   const width = intOrNull(req.headers['x-width']);
   const height = intOrNull(req.headers['x-height']);
@@ -129,11 +166,23 @@ export async function handleThumb(req, res, id) {
 // ---------- 底片库 ----------
 export function handleList(req, res, url) {
   requireSession(req, res);
+  send(res, 200, listPage(url));
+}
+
+// 底片库和 /api/v1/files 共用：q 搜原文件名（空格分开的词都要命中），kind 是 image / file 或具体类型
+function listPage(url) {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 60));
   const where = ['deleted_at IS NULL'];
   const args = [];
-  const q = (url.searchParams.get('q') || '').trim();
-  if (q) { where.push(`name LIKE ? ESCAPE '\\'`); args.push(`%${q.replace(/[\\%_]/g, '\\$&')}%`); }
+  for (const word of (url.searchParams.get('q') || '').trim().split(/\s+/).filter(Boolean).slice(0, 8)) {
+    where.push(`name LIKE ? ESCAPE '\\'`); args.push(`%${word.replace(/[\\%_]/g, '\\$&')}%`);
+  }
+  const kind = url.searchParams.get('kind') || '';
+  if (kind === 'image') where.push(`mime LIKE 'image/%'`);
+  else if (kind === 'file') where.push(`mime NOT LIKE 'image/%'`);
+  else if (kind === 'text') where.push(`mime = 'text/plain'`);
+  else if (kind === 'pdf') where.push(`mime = 'application/pdf'`);
+  else if (kind === 'audio' || kind === 'video') { where.push('mime LIKE ?'); args.push(`${kind}/%`); }
   const month = url.searchParams.get('month') || '';
   if (/^\d{4}-\d{2}$/.test(month)) { where.push(`${MONTH_SQL} = ?`); args.push(month); }
   const cursor = (url.searchParams.get('cursor') || '').match(/^(\d+)-(\d+)$/);
@@ -146,7 +195,24 @@ export function handleList(req, res, url) {
   const more = rows.length > limit;
   const items = rows.slice(0, limit).map(toApi);
   const last = items.at(-1);
-  send(res, 200, { items, nextCursor: more && last ? `${last.createdAt}-${last.id}` : null });
+  return { items, nextCursor: more && last ? `${last.createdAt}-${last.id}` : null };
+}
+
+// ---------- 给 AI / 程序读：带 read 权限的令牌 ----------
+const forAi = ({ id, kind, url, name, mime, size, width, height, createdAt }) =>
+  ({ id, kind, name, url, mime, size, width, height, createdAt: new Date(createdAt).toISOString() });
+
+export function handleApiList(req, res, url) {
+  requireApiToken(req, 'read');
+  const page = listPage(url);
+  send(res, 200, { items: page.items.map(forAi), nextCursor: page.nextCursor });
+}
+
+export function handleApiGet(req, res, id) {
+  requireApiToken(req, 'read');
+  const row = getById(id);
+  if (!row || row.deleted_at) throw new HttpError(404, '没有这个文件');
+  send(res, 200, forAi(toApi(row)));
 }
 
 export function handleMonths(req, res) {
@@ -236,9 +302,9 @@ export async function handleImage(req, res, path) {
   let key;
   try { key = decodeURIComponent(path.slice(3)); } catch { key = ''; }
   // 只对库里存在、且不在废纸篓里的图出图
-  const known = validKey(key) && db.prepare(
-    'SELECT 1 FROM images WHERE (key = ? OR thumb_key = ?) AND deleted_at IS NULL LIMIT 1').get(key, key);
-  if (!known) return send(res, 404, 'Not found');
+  const row = validKey(key) && db.prepare(
+    'SELECT key, name, mime FROM images WHERE (key = ? OR thumb_key = ?) AND deleted_at IS NULL LIMIT 1').get(key, key);
+  if (!row) return send(res, 404, 'Not found');
 
   const fwd = {};
   for (const h of ['range', 'if-none-match', 'if-modified-since']) if (req.headers[h]) fwd[h] = req.headers[h];
@@ -256,6 +322,15 @@ export async function handleImage(req, res, path) {
     if (v) headers[h] = v;
   }
   headers['cache-control'] ||= 'public, max-age=31536000, immutable';
+  if (row.key === key && !row.mime.startsWith('image/')) {
+    // 类型以库里为准；文本统一按 UTF-8 纯文本出，认不出的强制下载
+    const kind = kindOf(row.mime);
+    headers['content-type'] = kind === 'text' ? 'text/plain; charset=utf-8' : row.mime;
+    const fallback = row.name.replace(/[^\x20-\x7e]|["\\]/g, '_') || 'file';
+    headers['content-disposition'] = `${kind === 'other' ? 'attachment' : 'inline'}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(row.name || 'file')}`;
+    // Chrome 的 PDF 阅读器在 sandbox 里打不开；PDF 单独一个源、不带登录态，放开也无妨
+    if (kind === 'pdf') delete headers['content-security-policy'];
+  }
   res.writeHead(r.status, headers);
   if (req.method === 'HEAD' || !r.body || r.status === 304) return res.end();
   Readable.fromWeb(r.body).pipe(res);

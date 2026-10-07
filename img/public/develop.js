@@ -1,6 +1,6 @@
-// 冲洗台：在浏览器里压缩、生成缩略图，再上传
+// 冲洗台：图片在浏览器里压缩、生成缩略图再上传；其他文件原样上传
 
-import { $, $$, api, copyButton, fmtLabel, fmtSize, fmtSwitch, formatLink, onFmtChange, store, toast } from './lib.js';
+import { $, $$, api, copyButton, extLabel, fmtLabel, fmtSize, fmtSwitch, formatLink, onFmtChange, store, toast } from './lib.js';
 
 const optWebp = $('#opt-webp');
 const optQuality = $('#opt-quality');
@@ -17,7 +17,7 @@ export function init() {
 
   fmtSwitch($('[data-fmt-switch]'));
   onFmtChange(() => $$('#queue li[data-url]').forEach((li) => {
-    li.querySelector('.code').textContent = formatLink(li.dataset.url, li.dataset.name);
+    li.querySelector('.code').textContent = formatLink(li.dataset);
   }));
 
   const drop = $('#drop');
@@ -33,9 +33,7 @@ export function init() {
 }
 
 async function handleFiles(files) {
-  const imgs = [...files].filter((f) => f.type.startsWith('image/'));
-  if (!imgs.length) { toast('只收图片'); return; }
-  for (const f of imgs) await handleFile(f);
+  for (const f of files) await handleFile(f);
 }
 
 // ---------- 图片处理 ----------
@@ -98,7 +96,11 @@ function upload(blob, headers, onProgress) {
 function newRow(file, name) {
   const li = document.createElement('li');
   li.innerHTML = `<img alt=""><div><div class="name"></div><div class="meta">显影中…</div><div class="progress"><i></i></div></div><div class="acts"></div>`;
-  li.querySelector('img').src = URL.createObjectURL(file);
+  if (file.type.startsWith('image/')) {
+    li.querySelector('img').src = URL.createObjectURL(file);
+  } else {
+    li.querySelector('img').replaceWith(Object.assign(document.createElement('span'), { className: 'ext', textContent: extLabel(name) }));
+  }
   li.querySelector('.name').textContent = name;
   $('#queue').prepend(li);
   return li;
@@ -108,10 +110,11 @@ async function finishRow(li, image, metaText, autoCopy) {
   li.querySelector('.progress')?.remove();
   li.dataset.url = image.url;
   li.dataset.name = image.name;
+  li.dataset.kind = image.kind;
   const meta = li.querySelector('.meta');
   meta.className = 'meta ok';
   meta.textContent = metaText;
-  const code = Object.assign(document.createElement('pre'), { className: 'code', textContent: formatLink(image.url, image.name) });
+  const code = Object.assign(document.createElement('pre'), { className: 'code', textContent: formatLink(image) });
   meta.after(code);
   const btn = copyButton(() => code.textContent);
   li.querySelector('.acts').append(btn);
@@ -124,11 +127,12 @@ function failRow(li, message) {
   li.querySelector('.progress')?.remove();
   const meta = li.querySelector('.meta');
   meta.className = 'meta bad';
-  meta.textContent = '冲洗失败：' + message;
+  meta.textContent = '上传失败：' + message;
 }
 
 async function handleFile(file) {
-  const name = file.name && file.name !== 'image.png'
+  const isImage = file.type.startsWith('image/');
+  const name = !isImage || (file.name && file.name !== 'image.png')
     ? file.name
     : `截图-${new Date().toLocaleString('zh-CN', { hour12: false }).replace(/[/: ]/g, '')}.png`;
   const li = newRow(file, name);
@@ -139,12 +143,12 @@ async function handleFile(file) {
     const hash = await sha256(await file.arrayBuffer());
     const { image: existing } = await api(`/api/images/by-hash/${hash}`);
     if (existing) {
-      await finishRow(li, existing, '之前冲洗过，直接用原来的链接', true);
-      toast(`之前冲洗过，${fmtLabel()} 已复制`);
+      await finishRow(li, existing, '之前传过，直接用原来的链接', true);
+      toast(`之前传过，${fmtLabel()} 已复制`);
       return;
     }
 
-    try { bmp = await createImageBitmap(file); } catch {}
+    if (isImage) try { bmp = await createImageBitmap(file); } catch {}
     const out = await develop(file, bmp);
     const thumb = bmp ? await thumbnail(bmp) : null;
     const sizes = out.blob !== file ? `${fmtSize(file.size)} → ${fmtSize(out.blob.size)}` : fmtSize(file.size);
@@ -158,11 +162,11 @@ async function handleFile(file) {
       'x-height': out.height,
     }, (p) => { bar.style.width = (p * 100).toFixed(0) + '%'; });
 
-    if (thumb && !duplicate) {
+    if (thumb && !duplicate && image.kind === 'image') {
       await api(`/api/images/${image.id}/thumb`, { method: 'PUT', body: thumb }).catch(() => {});
     }
-    await finishRow(li, image, duplicate ? '之前冲洗过，直接用原来的链接' : `已冲洗 · ${sizes}`, true);
-    toast(`已冲洗，${fmtLabel()} 已复制`);
+    await finishRow(li, image, duplicate ? '之前传过，直接用原来的链接' : `${isImage ? '已冲洗' : '已存档'} · ${sizes}`, true);
+    toast(`已上传，${fmtLabel()} 已复制`);
     window.dispatchEvent(new Event('darkroom:changed'));
   } catch (err) {
     failRow(li, err.message);

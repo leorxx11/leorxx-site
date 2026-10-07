@@ -11,8 +11,10 @@ export function init() {
     e.preventDefault();
     const name = $('#token-name').value.trim();
     if (!name) return toast('给令牌起个名字');
+    const scopes = [...document.querySelectorAll('#token-form [name=scope]:checked')].map((c) => c.value);
+    if (!scopes.length) return toast('至少选一项权限');
     try {
-      const { token } = await api('/api/tokens', { method: 'POST', body: { name } });
+      const { token } = await api('/api/tokens', { method: 'POST', body: { name, scopes } });
       $('#token-name').value = '';
       $('#token-value').textContent = token;
       $('#token-new').hidden = false;
@@ -25,7 +27,7 @@ export function init() {
   });
   $('#tokens').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-delete]');
-    if (!b || !confirm(`吊销令牌「${b.dataset.name}」？用它的程序会立刻上传失败。`)) return;
+    if (!b || !confirm(`吊销令牌「${b.dataset.name}」？用它的程序和 AI 会立刻失去访问权限。`)) return;
     try {
       await api(`/api/tokens/${encodeURIComponent(b.dataset.delete)}`, { method: 'DELETE' });
       toast('已吊销');
@@ -66,7 +68,8 @@ async function load() {
       const li = document.createElement('li');
       li.innerHTML = `<b></b><small></small><span class="spacer"></span>`;
       li.querySelector('b').textContent = t.name;
-      li.querySelector('small').textContent = `创建于 ${fmtTime(t.created_at)} · ${t.last_used_at ? `最近使用 ${fmtTime(t.last_used_at)}` : '从未使用'}`;
+      const scopes = t.scopes.split(',').map((s) => ({ upload: '上传', read: '读取' }[s] || s)).join(' + ');
+      li.querySelector('small').textContent = `${scopes} · 创建于 ${fmtTime(t.created_at)} · ${t.last_used_at ? `最近使用 ${fmtTime(t.last_used_at)}` : '从未使用'}`;
       const del = Object.assign(document.createElement('button'), { type: 'button', className: 'link danger', textContent: '吊销' });
       del.dataset.delete = t.id;
       del.dataset.name = t.name;

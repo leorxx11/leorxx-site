@@ -23,7 +23,10 @@ const PAGE_HEADERS = {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     'font-src https://fonts.gstatic.com',
     "script-src 'self'",
-    "connect-src 'self'",
+    // 底片库预览文本、PDF、音视频，都从图片域名读
+    `connect-src 'self' ${config.imageOrigin}`,
+    `frame-src ${config.imageOrigin}`,
+    `media-src ${config.imageOrigin}`,
     "frame-ancestors 'none'",
     "base-uri 'none'",
     "form-action 'self'",
@@ -92,6 +95,9 @@ const routes = [
   ['GET', '/api/tokens', auth.handleListTokens],
   ['POST', '/api/tokens', auth.handleCreateToken],
   ['DELETE', /^\/api\/tokens\/(\w+)$/, (req, res, m) => auth.handleDeleteToken(req, res, m[1])],
+
+  ['GET', '/api/v1/files', images.handleApiList],
+  ['GET', /^\/api\/v1\/files\/(\d+)$/, (req, res, m) => images.handleApiGet(req, res, Number(m[1]))],
 
   ['POST', '/api/images', images.handleUpload],
   ['GET', '/api/images', images.handleList],

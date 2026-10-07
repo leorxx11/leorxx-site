@@ -57,10 +57,10 @@
   <main class="view" id="view-develop" hidden>
     <h2 class="kicker"><b>冲洗台</b><i>Develop</i></h2>
     <label class="drop" id="drop">
-      <input id="file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" multiple>
+      <input id="file" type="file" multiple>
       <span>
-        <strong>把照片放这里。</strong>
-        <small>拖进来、点一下选文件，或者直接 <kbd>⌘ V</kbd> 粘贴截图</small>
+        <strong>把照片或文件放这里。</strong>
+        <small>拖进来、点一下选文件，或者直接 <kbd>⌘ V</kbd> 粘贴截图。图片按下面的选项压缩，其他文件原样保存</small>
       </span>
     </label>
     <div class="opts">
@@ -90,6 +90,15 @@
       </span>
       <span class="spacer"></span>
       <input type="search" id="lib-q" placeholder="搜原文件名" aria-label="搜原文件名">
+      <select id="lib-kind" aria-label="按类型筛选">
+        <option value="">全部类型</option>
+        <option value="image">图片</option>
+        <option value="file">文件</option>
+        <option value="text">文本</option>
+        <option value="pdf">PDF</option>
+        <option value="audio">音频</option>
+        <option value="video">视频</option>
+      </select>
       <select id="lib-month" aria-label="按月份筛选"><option value="">全部月份</option></select>
       <button class="link" type="button" id="lib-multi">多选</button>
     </div>
@@ -126,6 +135,8 @@
     <ul class="rows" id="tokens"></ul>
     <form class="inline" id="token-form" novalidate>
       <input id="token-name" placeholder="给令牌起个名字，比如项目名" maxlength="40" autocomplete="off" aria-label="令牌名字">
+      <label><input type="checkbox" name="scope" value="upload" checked> 上传</label>
+      <label><input type="checkbox" name="scope" value="read"> 读取</label>
       <button class="btn" type="submit">生成</button>
     </form>
     <div class="token-new" id="token-new" hidden>
@@ -133,7 +144,9 @@
       <code id="token-value"></code>
       <button class="link" type="button" id="token-copy">复制</button>
     </div>
-    <p class="aside">给你自己的后端程序上传用，只能上传，不能看图或删图。用法：<code>POST /api/v1/upload</code>，请求头 <code>Authorization: Bearer 令牌</code>，请求体是图片。</p>
+    <p class="aside">给你自己的后端程序和 AI 用，都不能删除。请求头带 <code>Authorization: Bearer 令牌</code>。
+      「上传」：<code>POST /api/v1/upload</code>，请求体是文件；
+      「读取」：<code>GET /api/v1/files?q=关键词&amp;kind=text</code> 列出、搜索文件，返回的链接可以直接读。</p>
 
     <h2 class="kicker"><b>登录</b><i>Sessions</i></h2>
     <p class="aside">

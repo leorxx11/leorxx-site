@@ -26,6 +26,8 @@ export const config = {
   rpName: env.RP_NAME || '暗房',
   dbPath: env.DB_PATH || './data/darkroom.db',
   maxBytes: Number(env.MAX_MB || 20) * 1024 * 1024,
+  // 图片以外的文件（文档、PDF、音视频……）
+  maxFileBytes: Number(env.MAX_FILE_MB || 100) * 1024 * 1024,
   trashDays: Number(env.TRASH_DAYS || 30),
   sessionDays: 30,
   r2: {

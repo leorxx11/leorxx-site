@@ -29,7 +29,7 @@ leorxx.xyz {
 	@darkroom path /darkroom /darkroom/ /api/* /assets/*
 	handle @darkroom {
 		request_body {
-			max_size 25MB
+			max_size 105MB
 		}
 		reverse_proxy darkroom:3100
 	}
@@ -44,7 +44,7 @@ www.leorxx.xyz {
 	redir https://leorxx.xyz{uri} permanent
 }
 
-# 只负责出图；其他地址都转到 leorxx.xyz/darkroom
+# 只负责出图和文件；其他地址都转到 leorxx.xyz/darkroom
 # /sw.js 由暗房返回一个自我注销的脚本，清掉以前单独装在这个域名上的 Service Worker
 img.leorxx.xyz {
 	@served path /i/* /sw.js

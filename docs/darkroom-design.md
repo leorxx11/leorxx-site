@@ -134,12 +134,21 @@ img/
 
 相册与标签、粘贴网址抓图、防盗链、服务器端本地缓存、主页展示「最近冲洗」。
 
-## 给后端程序上传（API 令牌）
+## 文件
 
-令牌只能上传，不能列表或删除。在「设置 → 上传令牌」里生成、查看最近使用时间、吊销（令牌明文只在生成时显示一次）；也可以在服务器上用命令行，库里只存哈希：
+除了图片，也能存任意文件（上限 `MAX_FILE_MB`，默认 100 MB），原样存进 R2，不压缩。
+
+- 链接里是 128 位随机串，猜不到；知道链接就能读，放进废纸篓立即失效。图片的链接规则不变。
+- 出文件时类型以库里为准（按扩展名定，不信任客户端）：文本类（含 HTML、SVG、JS）一律 `text/plain; charset=utf-8`，浏览器不会执行；PDF、音视频按原类型内联；其他一律 `attachment` 下载。
+- 底片库预览：文本读前 256 KB，PDF 用浏览器自带阅读器，音视频用播放器，其他只显示扩展名。
+- PDF 的响应不带 CSP `sandbox`（Chrome 的 PDF 阅读器在 sandbox 里打不开），其他类型照旧。
+
+## 给后端程序和 AI 用（API 令牌）
+
+令牌有两种权限：「上传」和「读取」（列出、搜索文件），都不能删除。在「设置 → 上传令牌」里生成、查看最近使用时间、吊销（令牌明文只在生成时显示一次）；也可以在服务器上用命令行，库里只存哈希：
 
 ```
-docker exec darkroom node cli.js token-create 我的项目   # 只显示一次
+docker exec darkroom node cli.js token-create 我的项目 upload,read   # 只显示一次，权限默认 upload
 docker exec darkroom node cli.js token-list
 docker exec darkroom node cli.js token-revoke 我的项目
 ```
@@ -154,3 +163,5 @@ curl -X POST https://leorxx.xyz/api/v1/upload \
 ```
 
 把返回的 `image.url` 存起来，页面里直接 `<img src>`。服务器不转码、不生成缩略图，传前自己压好。错误令牌每个 IP 10 分钟内最多试 20 次。
+
+读取（给 AI）：`GET /api/v1/files`，参数 `q`（搜原文件名，空格分开的词都要命中）、`kind`（`image` / `file` / `text` / `pdf` / `audio` / `video`）、`month`（`2026-10`）、`limit`（≤100）、`cursor`（上一页返回的 `nextCursor`）。`GET /api/v1/files/<id>` 取单个。返回的 `url` 不需要令牌，直接读。
