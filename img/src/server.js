@@ -9,6 +9,7 @@ import { db } from './db.js';
 import { HttpError, send } from './http.js';
 import * as auth from './auth.js';
 import * as images from './images.js';
+import { handleMcp } from './mcp.js';
 
 // ---------- 静态页面 ----------
 const PUBLIC_DIR = new URL('../public/', import.meta.url);
@@ -124,6 +125,9 @@ async function route(req, res) {
 
   // 后端程序用令牌上传，没有浏览器的 Origin
   if (method === 'POST' && path === '/api/v1/upload') return images.handleApiUpload(req, res);
+  // MCP：令牌在请求头或地址里
+  const mcp = path.match(/^\/api\/mcp(?:\/([\w-]+))?\/?$/);
+  if (mcp) return handleMcp(req, res, mcp[1]);
 
   // 写操作必须来自本站页面，挡掉跨站请求
   if (!['GET', 'HEAD'].includes(method) && req.headers.origin !== config.origin) {

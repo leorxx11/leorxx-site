@@ -17,12 +17,17 @@ export function init() {
       const { token } = await api('/api/tokens', { method: 'POST', body: { name, scopes } });
       $('#token-name').value = '';
       $('#token-value').textContent = token;
+      $('#token-mcp').textContent = `${location.origin}/api/mcp/${token}`;
       $('#token-new').hidden = false;
       load();
     } catch (err) { toast(err.message); }
   });
   $('#token-copy').addEventListener('click', async () => {
     await copy($('#token-value').textContent);
+    toast('已复制');
+  });
+  $('#token-mcp-copy').addEventListener('click', async () => {
+    await copy($('#token-mcp').textContent);
     toast('已复制');
   });
   $('#tokens').addEventListener('click', async (e) => {

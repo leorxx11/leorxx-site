@@ -165,3 +165,12 @@ curl -X POST https://leorxx.xyz/api/v1/upload \
 把返回的 `image.url` 存起来，页面里直接 `<img src>`。服务器不转码、不生成缩略图，传前自己压好。错误令牌每个 IP 10 分钟内最多试 20 次。
 
 读取（给 AI）：`GET /api/v1/files`，参数 `q`（搜原文件名，空格分开的词都要命中）、`kind`（`image` / `file` / `text` / `pdf` / `audio` / `video`）、`month`（`2026-10`）、`limit`（≤100）、`cursor`（上一页返回的 `nextCursor`）。`GET /api/v1/files/<id>` 取单个。返回的 `url` 不需要令牌，直接读。
+
+## MCP（让 AI 直接用）
+
+`src/mcp.js`，Streamable HTTP 传输，无状态：每个 POST 是 JSON-RPC 消息，直接回 JSON，不开 SSE（GET 回 405）。不用 SDK，协议部分只有 initialize / ping / tools/list / tools/call。
+
+- 地址 `https://leorxx.xyz/api/mcp`，令牌放 `Authorization: Bearer`；只能填地址的客户端（Claude 网页 / 桌面的自定义连接器等）用 `https://leorxx.xyz/api/mcp/<令牌>`。地址里带令牌就等于令牌本身，别外传。
+- 工具按令牌权限给：读取 → `list_files`、`read_file`；上传 → `upload_file`。都不能删除。
+- `read_file`：文本按字节分段读（默认 100 KB，最多 400 KB，自动对齐 UTF-8 字符边界，返回 `next_offset`）；图片 ≤ 5 MB 返回 image；PDF ≤ 20 MB 作为 resource 附件返回；其他只给信息和链接。
+- `upload_file`：`text` 或 `base64` 二选一，≤ 15 MB，类型按文件名扩展名判断，按内容哈希查重。

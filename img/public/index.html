@@ -143,10 +143,14 @@
       <p class="aside">令牌只显示这一次，请现在复制保存。</p>
       <code id="token-value"></code>
       <button class="link" type="button" id="token-copy">复制</button>
+      <p class="aside">MCP 地址（令牌已含在地址里，适合 Claude、ChatGPT 等只能填地址的客户端）：</p>
+      <code id="token-mcp"></code>
+      <button class="link" type="button" id="token-mcp-copy">复制</button>
     </div>
     <p class="aside">给你自己的后端程序和 AI 用，都不能删除。请求头带 <code>Authorization: Bearer 令牌</code>。
       「上传」：<code>POST /api/v1/upload</code>，请求体是文件；
-      「读取」：<code>GET /api/v1/files?q=关键词&amp;kind=text</code> 列出、搜索文件，返回的链接可以直接读。</p>
+      「读取」：<code>GET /api/v1/files?q=关键词&amp;kind=text</code> 列出、搜索文件，返回的链接可以直接读。
+      也可以作为 MCP 服务接给 AI：地址 <code>/api/mcp</code>，令牌放请求头，或者直接用生成令牌时给出的带令牌地址；读取权限对应 list_files、read_file，上传权限对应 upload_file。</p>
 
     <h2 class="kicker"><b>登录</b><i>Sessions</i></h2>
     <p class="aside">

@@ -111,17 +111,27 @@ async function ingest(req, res, { hashBody = false } = {}) {
   const rawName = String(req.headers['x-filename'] || '');
   let name;
   try { name = decodeURIComponent(rawName); } catch { name = rawName; }
-  name = name.slice(0, 200);
+  if (hashBody && !sourceHash) sourceHash = createHash('sha256').update(buf).digest('hex');
+  send(res, 200, await storeFile(buf, {
+    name,
+    sourceHash,
+    width: intOrNull(req.headers['x-width']),
+    height: intOrNull(req.headers['x-height']),
+    originalSize: intOrNull(req.headers['x-original-size']),
+  }));
+}
 
+// 存一个文件：查重、写 R2、记索引。网页、/api/v1/upload 和 MCP 共用
+export async function storeFile(buf, { name = '', sourceHash = null, width = null, height = null, originalSize = null }) {
+  name = String(name).slice(0, 200);
   const kind = classify(name, buf);
   const isImage = kind.type.startsWith('image/');
   const limit = isImage ? config.maxBytes : config.maxFileBytes;
   if (buf.length > limit) throw new HttpError(413, `${isImage ? '图片' : '文件'}超过 ${Math.round(limit / 1024 / 1024)} MB`);
   if (!buf.length) throw new HttpError(400, '文件是空的');
-  if (hashBody && !sourceHash) {
-    sourceHash = createHash('sha256').update(buf).digest('hex');
+  if (sourceHash) {
     const dup = getActiveByHash(sourceHash);
-    if (dup) return send(res, 200, { image: toApi(dup), duplicate: true });
+    if (dup) return { image: toApi(dup), duplicate: true };
   }
 
   const now = Date.now();
@@ -129,9 +139,6 @@ async function ingest(req, res, { hashBody = false } = {}) {
   // 文件的链接就是访问凭证，用 128 位随机串，猜不到
   const id = isImage ? now.toString(36) + randomBytes(3).toString('hex') : randomBytes(16).toString('base64url');
   const key = `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${id}.${kind.ext}`;
-  const width = intOrNull(req.headers['x-width']);
-  const height = intOrNull(req.headers['x-height']);
-  const originalSize = intOrNull(req.headers['x-original-size']);
 
   await putObject(key, buf, kind.type, {
     name, width, height, 'original-size': originalSize, 'source-hash': sourceHash, created: now,
@@ -141,13 +148,13 @@ async function ingest(req, res, { hashBody = false } = {}) {
       INSERT INTO images (key, name, mime, size, original_size, width, height, source_hash, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(key, name, kind.type, buf.length, originalSize, width, height, sourceHash, now);
-    send(res, 200, { image: toApi(getById(Number(lastInsertRowid))) });
+    return { image: toApi(getById(Number(lastInsertRowid))) };
   } catch (err) {
     // 同一张图几乎同时传了两次：保留先到的，删掉刚写进 R2 的这份
     const dup = sourceHash && getActiveByHash(sourceHash);
     if (!dup) throw err;
     await deleteObject(key).catch(() => {});
-    send(res, 200, { image: toApi(dup), duplicate: true });
+    return { image: toApi(dup), duplicate: true };
   }
 }
 
@@ -170,7 +177,7 @@ export function handleList(req, res, url) {
 }
 
 // 底片库和 /api/v1/files 共用：q 搜原文件名（空格分开的词都要命中），kind 是 image / file 或具体类型
-function listPage(url) {
+export function listPage(url) {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 60));
   const where = ['deleted_at IS NULL'];
   const args = [];
@@ -199,7 +206,7 @@ function listPage(url) {
 }
 
 // ---------- 给 AI / 程序读：带 read 权限的令牌 ----------
-const forAi = ({ id, kind, url, name, mime, size, width, height, createdAt }) =>
+export const forAi = ({ id, kind, url, name, mime, size, width, height, createdAt }) =>
   ({ id, kind, name, url, mime, size, width, height, createdAt: new Date(createdAt).toISOString() });
 
 export function handleApiList(req, res, url) {
@@ -210,9 +217,14 @@ export function handleApiList(req, res, url) {
 
 export function handleApiGet(req, res, id) {
   requireApiToken(req, 'read');
+  send(res, 200, forAi(activeFile(id)));
+}
+
+// 没进废纸篓的文件，带上 R2 里的 key
+export function activeFile(id) {
   const row = getById(id);
   if (!row || row.deleted_at) throw new HttpError(404, '没有这个文件');
-  send(res, 200, forAi(toApi(row)));
+  return { ...toApi(row), key: row.key };
 }
 
 export function handleMonths(req, res) {

@@ -152,18 +152,22 @@ export function handleDeleteToken(req, res, id) {
   send(res, 200, { ok: true });
 }
 
-export function requireApiToken(req, scope) {
+// 校验令牌，返回它的权限列表。令牌默认取 Authorization: Bearer，MCP 也可以把令牌放在地址里传进来
+export function apiTokenScopes(req, token = (req.headers.authorization || '').match(/^Bearer (\S+)$/)?.[1]) {
   const ip = clientIp(req);
   tokenLimiter.check(ip);
-  const token = (req.headers.authorization || '').match(/^Bearer (\S+)$/)?.[1];
   const hash = token && sha256(token);
   const row = hash && db.prepare('SELECT scopes FROM api_tokens WHERE token_hash = ?').get(hash);
   if (!row) {
     tokenLimiter.add(ip);
     throw new HttpError(401, '令牌无效');
   }
-  if (!row.scopes.split(',').includes(scope)) throw new HttpError(403, `这个令牌没有 ${scope} 权限`);
   db.prepare('UPDATE api_tokens SET last_used_at = ? WHERE token_hash = ?').run(Date.now(), hash);
+  return row.scopes.split(',');
+}
+
+export function requireApiToken(req, scope) {
+  if (!apiTokenScopes(req).includes(scope)) throw new HttpError(403, `这个令牌没有 ${scope} 权限`);
 }
 
 // ---------- 挑战（注册 / 登录过程中的一次性随机数）----------
