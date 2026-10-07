@@ -122,6 +122,19 @@
     <ul class="rows" id="passkeys"></ul>
     <p class="aside"><button class="link" type="button" id="add-passkey">在这台设备上再添加一把</button></p>
 
+    <h2 class="kicker"><b>上传令牌</b><i>API tokens</i></h2>
+    <ul class="rows" id="tokens"></ul>
+    <form class="inline" id="token-form" novalidate>
+      <input id="token-name" placeholder="给令牌起个名字，比如项目名" maxlength="40" autocomplete="off" aria-label="令牌名字">
+      <button class="btn" type="submit">生成</button>
+    </form>
+    <div class="token-new" id="token-new" hidden>
+      <p class="aside">令牌只显示这一次，请现在复制保存。</p>
+      <code id="token-value"></code>
+      <button class="link" type="button" id="token-copy">复制</button>
+    </div>
+    <p class="aside">给你自己的后端程序上传用，只能上传，不能看图或删图。用法：<code>POST /api/v1/upload</code>，请求头 <code>Authorization: Bearer 令牌</code>，请求体是图片。</p>
+
     <h2 class="kicker"><b>登录</b><i>Sessions</i></h2>
     <p class="aside">
       <span id="session-count"></span>

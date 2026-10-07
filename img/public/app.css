@@ -157,3 +157,11 @@ select { cursor: pointer; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 .colophon { margin-top: 56px; padding-top: 14px; border-top: 3px double var(--rule); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; font-size: 13px; color: var(--ink-3); }
+
+/* 上传令牌 */
+form.inline { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+form.inline input { flex: 1; min-width: 0; background: transparent; border: 0; border-bottom: 1px solid var(--hair); padding: 4px 2px; font-size: 14px; outline: 0; border-radius: 0; color: inherit; }
+form.inline input:focus { border-color: var(--ink); }
+.token-new { margin-top: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.token-new p { flex-basis: 100%; margin: 0; }
+.token-new code { word-break: break-all; user-select: all; }

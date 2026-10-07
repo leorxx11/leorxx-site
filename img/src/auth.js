@@ -122,9 +122,30 @@ export function createApiToken(name) {
   return token;
 }
 
-export const listApiTokens = () => db.prepare('SELECT name, created_at, last_used_at FROM api_tokens ORDER BY created_at').all();
+export const listApiTokens = () => db.prepare('SELECT substr(token_hash, 1, 12) AS id, name, created_at, last_used_at FROM api_tokens ORDER BY created_at').all();
 
 export const revokeApiToken = (name) => Number(db.prepare('DELETE FROM api_tokens WHERE name = ?').run(name).changes);
+
+export function handleListTokens(req, res) {
+  requireSession(req, res);
+  send(res, 200, { tokens: listApiTokens() });
+}
+
+export async function handleCreateToken(req, res) {
+  requireSession(req, res);
+  const { name } = await readJson(req);
+  const clean = String(name || '').trim().slice(0, 40);
+  if (!clean) throw new HttpError(400, '给令牌起个名字');
+  if (listApiTokens().length >= 20) throw new HttpError(400, '令牌最多 20 个，先删掉不用的');
+  send(res, 200, { token: createApiToken(clean) });
+}
+
+export function handleDeleteToken(req, res, id) {
+  requireSession(req, res);
+  const { changes } = db.prepare('DELETE FROM api_tokens WHERE substr(token_hash, 1, 12) = ?').run(id);
+  if (!changes) throw new HttpError(404, '没有这个令牌');
+  send(res, 200, { ok: true });
+}
 
 export function requireApiToken(req) {
   const ip = clientIp(req);

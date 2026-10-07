@@ -89,6 +89,10 @@ const routes = [
   ['GET', '/api/passkeys', auth.handleListPasskeys],
   ['DELETE', /^\/api\/passkeys\/([\w-]+)$/, (req, res, m) => auth.handleDeletePasskey(req, res, m[1])],
 
+  ['GET', '/api/tokens', auth.handleListTokens],
+  ['POST', '/api/tokens', auth.handleCreateToken],
+  ['DELETE', /^\/api\/tokens\/(\w+)$/, (req, res, m) => auth.handleDeleteToken(req, res, m[1])],
+
   ['POST', '/api/images', images.handleUpload],
   ['GET', '/api/images', images.handleList],
   ['GET', '/api/images/months', images.handleMonths],

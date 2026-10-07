@@ -1,12 +1,37 @@
 // 设置：通行密钥、登录会话、用量
 
-import { $, api, fmtBig, fmtTime, toast } from './lib.js';
+import { $, api, copy, fmtBig, fmtTime, toast } from './lib.js';
 import { createPasskey, explain } from './webauthn.js';
 
 const R2_FREE_BYTES = 10 * 1024 ** 3;
 
 export function init() {
   $('#add-passkey').addEventListener('click', addPasskey);
+  $('#token-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('#token-name').value.trim();
+    if (!name) return toast('给令牌起个名字');
+    try {
+      const { token } = await api('/api/tokens', { method: 'POST', body: { name } });
+      $('#token-name').value = '';
+      $('#token-value').textContent = token;
+      $('#token-new').hidden = false;
+      load();
+    } catch (err) { toast(err.message); }
+  });
+  $('#token-copy').addEventListener('click', async () => {
+    await copy($('#token-value').textContent);
+    toast('已复制');
+  });
+  $('#tokens').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-delete]');
+    if (!b || !confirm(`吊销令牌「${b.dataset.name}」？用它的程序会立刻上传失败。`)) return;
+    try {
+      await api(`/api/tokens/${encodeURIComponent(b.dataset.delete)}`, { method: 'DELETE' });
+      toast('已吊销');
+      load();
+    } catch (err) { toast(err.message); }
+  });
   $('#logout-others').addEventListener('click', async () => {
     try {
       const r = await api('/api/auth/logout', { method: 'POST', body: { others: true } });
@@ -33,7 +58,21 @@ export function enter() { load(); }
 
 async function load() {
   try {
-    const [{ passkeys, sessions }, st] = await Promise.all([api('/api/passkeys'), api('/api/stats')]);
+    const [{ passkeys, sessions }, st, { tokens }] = await Promise.all([api('/api/passkeys'), api('/api/stats'), api('/api/tokens')]);
+    const tlist = $('#tokens');
+    tlist.innerHTML = '';
+    if (!tokens.length) tlist.innerHTML = '<li><small>还没有令牌</small></li>';
+    for (const t of tokens) {
+      const li = document.createElement('li');
+      li.innerHTML = `<b></b><small></small><span class="spacer"></span>`;
+      li.querySelector('b').textContent = t.name;
+      li.querySelector('small').textContent = `创建于 ${fmtTime(t.created_at)} · ${t.last_used_at ? `最近使用 ${fmtTime(t.last_used_at)}` : '从未使用'}`;
+      const del = Object.assign(document.createElement('button'), { type: 'button', className: 'link danger', textContent: '吊销' });
+      del.dataset.delete = t.id;
+      del.dataset.name = t.name;
+      li.append(del);
+      tlist.append(li);
+    }
     const list = $('#passkeys');
     list.innerHTML = '';
     for (const p of passkeys) {
