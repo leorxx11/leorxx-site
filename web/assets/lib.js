@@ -9,8 +9,15 @@ export const store = {
 };
 
 // ---------- 请求 ----------
+// 登录过期（接口回 401）时交给 main.js 处理：提示一句，回到登录页
+// 之后两秒内各处跟着报的「请先登录」不再弹出，免得盖掉那句提示
 let onUnauthorized = () => {};
+let muteErrorsUntil = 0;
 export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
+export function unauthorized() {
+  onUnauthorized();
+  muteErrorsUntil = Date.now() + 2000;
+}
 
 export async function api(path, { method = 'GET', body, headers = {} } = {}) {
   const isJson = body !== undefined && !(body instanceof Blob);
@@ -21,19 +28,46 @@ export async function api(path, { method = 'GET', body, headers = {} } = {}) {
   });
   let data = null;
   try { data = await r.json(); } catch {}
-  if (r.status === 401 && !path.startsWith('/api/auth/')) onUnauthorized();
+  if (r.status === 401 && !path.startsWith('/api/auth/')) unauthorized();
   if (!r.ok) throw new Error(data?.error || `出错了（${r.status}）`);
   return data;
 }
 
+// ---------- 过渡 ----------
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// 用 View Transition 做切换；浏览器不支持、用户关了动效、页面在后台时直接切
+export function transition(update) {
+  if (!document.startViewTransition || reducedMotion() || document.visibilityState !== 'visible') {
+    update();
+    return Promise.resolve();
+  }
+  const t = document.startViewTransition(update);
+  t.ready.catch(() => {});
+  return t.finished.catch(() => {});
+}
+
+// 让一块内容的入场动画重新播一遍
+export function replay(el) {
+  if (!el?.classList.contains('rise')) return;
+  el.classList.remove('rise');
+  void el.offsetWidth;
+  el.classList.add('rise');
+}
+
 // ---------- 提示与复制 ----------
+export const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>';
+
+// ok 为 true 时前面带个绿色的勾，出错时不带
 let toastTimer;
-export function toast(msg) {
+export function toast(msg, ok = false) {
+  if (!ok && Date.now() < muteErrorsUntil) return;
   const el = $('#toast');
   el.textContent = msg;
+  if (ok) el.insertAdjacentHTML('afterbegin', CHECK);
+  el.classList.toggle('ok', ok);
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ok ? 1800 : 3200);
 }
 
 export async function copy(text) {
@@ -44,12 +78,13 @@ export async function copy(text) {
   }
 }
 
-// 复制按钮：点完短暂变成「已复制 ✓」
-export function copyButton(getText, label = '复制') {
-  const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'link', textContent: label });
+// 复制按钮：点完短暂变成「✓ 已复制」
+export function copyButton(getText, { label = '复制', className = 'btn' } = {}) {
+  const btn = Object.assign(document.createElement('button'), { type: 'button', className, textContent: label });
   let timer;
   btn.flash = () => {
-    btn.textContent = '已复制 ✓'; btn.classList.add('done');
+    btn.innerHTML = CHECK + '已复制';
+    btn.classList.add('done');
     clearTimeout(timer);
     timer = setTimeout(() => { btn.textContent = label; btn.classList.remove('done'); }, 1600);
   };
@@ -65,6 +100,17 @@ export const fmtTime = (t) => {
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 export const fmtMonth = (m) => { const [y, mm] = m.split('-'); return `${y} 年 ${Number(mm)} 月`; };
+// 卡片上的日期：今年的只写月日
+export const fmtDay = (t) => {
+  const d = new Date(t);
+  return `${d.getFullYear() === new Date().getFullYear() ? '' : `${d.getFullYear()} 年 `}${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+};
+export const fmtLong = (t) => {
+  const d = new Date(t);
+  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+export const isToday = (t) => new Date(t).toDateString() === new Date().toDateString();
+export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const abs = (u) => new URL(u, location.origin).href;
 const stem = (n) => (n || 'image').replace(/\.[^.]+$/, '');
 const escAttr = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

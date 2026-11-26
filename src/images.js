@@ -4,7 +4,6 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { config } from './config.js';
 import { db, tx } from './db.js';
-import { requireApiToken, requireSession } from './auth.js';
 import { HttpError, readBody, readJson, send } from './http.js';
 import { deleteObject, getObject, headMeta, listAll, putObject } from './r2.js';
 
@@ -57,6 +56,25 @@ export function kindOf(mime) {
 const thumbKeyFor = (key) => `thumbs/${key.replace(/\.[^./]+$/, '')}.webp`;
 const validKey = (key) => /^[\w\-./]{1,200}$/.test(key) && !key.includes('..') && !key.startsWith('/');
 const intOrNull = (v) => (Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : null);
+const floatOrNull = (v, min = -1e5, max = 1e5) => {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : null;
+};
+
+function nextDeskSpot() {
+  const { cnt, maxZ } = db.prepare(
+    'SELECT COUNT(*) AS cnt, COALESCE(MAX(z), 0) AS maxZ FROM images WHERE deleted_at IS NULL',
+  ).get();
+  const angle = cnt * 2.39996 + (Math.random() - 0.5) * 0.25;
+  const radius = cnt === 0 ? 0 : 142 * Math.sqrt(cnt);
+  return {
+    x: Math.round(Math.cos(angle) * radius * 1.18),
+    y: Math.round(Math.sin(angle) * radius * 0.86),
+    rot: Number(((Math.random() - 0.5) * 3.4).toFixed(2)),
+    z: maxZ + 1,
+  };
+}
 
 function toApi(row) {
   const kind = kindOf(row.mime);
@@ -75,7 +93,19 @@ function toApi(row) {
     createdAt: row.created_at,
     deletedAt: row.deleted_at,
     purgeAt: row.deleted_at ? row.deleted_at + config.trashDays * DAY : null,
+    x: row.x ?? 0,
+    y: row.y ?? 0,
+    w: row.w ?? null,
+    rot: row.rot ?? 0,
+    z: row.z ?? 0,
   };
+}
+
+// 画布和列表是同一批文件：没进回收站的都摆在桌上
+export function listDeskFiles() {
+  return db.prepare(`${SELECT} WHERE deleted_at IS NULL ORDER BY z ASC, id ASC LIMIT 2000`)
+    .all()
+    .map(toApi);
 }
 
 const SELECT = `SELECT *, ${MONTH_SQL} AS month FROM images`;
@@ -90,21 +120,25 @@ function parseIds(body) {
 
 // ---------- 上传 ----------
 export async function handleUpload(req, res) {
-  requireSession(req, res);
   return ingest(req, res);
 }
 
-// 给后端程序用：Authorization: Bearer 令牌，请求体是文件原始字节，服务器自己算哈希查重
+// 给后端程序用：请求体是文件原始字节，服务器自己算哈希查重
 export async function handleApiUpload(req, res) {
-  requireApiToken(req, 'upload');
   return ingest(req, res, { hashBody: true });
 }
 
 async function ingest(req, res, { hashBody = false } = {}) {
+  const deskX = floatOrNull(req.headers['x-desk-x']);
+  const deskY = floatOrNull(req.headers['x-desk-y']);
+  const deskRot = floatOrNull(req.headers['x-desk-rot'], -45, 45);
   let sourceHash = /^[0-9a-f]{64}$/.test(req.headers['x-source-hash'] || '') ? req.headers['x-source-hash'] : null;
   if (sourceHash) {
     const dup = getActiveByHash(sourceHash);
-    if (dup) { req.resume(); return send(res, 200, { image: toApi(dup), duplicate: true }); }
+    if (dup) {
+      req.resume();
+      return send(res, 200, { image: toApi(moveOnDesk(dup, deskX, deskY, deskRot)), duplicate: true });
+    }
   }
 
   const buf = await readBody(req, Math.max(config.maxBytes, config.maxFileBytes));
@@ -118,11 +152,25 @@ async function ingest(req, res, { hashBody = false } = {}) {
     width: intOrNull(req.headers['x-width']),
     height: intOrNull(req.headers['x-height']),
     originalSize: intOrNull(req.headers['x-original-size']),
+    deskX,
+    deskY,
+    deskRot,
   }));
 }
 
+// 重复上传时如果带了落点，就把原来那张挪到落点、放到最上层
+function moveOnDesk(row, deskX, deskY, deskRot) {
+  if (deskX === null || deskY === null) return row;
+  const { z } = nextDeskSpot();
+  db.prepare('UPDATE images SET x = ?, y = ?, rot = ?, z = ? WHERE id = ?').run(deskX, deskY, deskRot ?? row.rot ?? 0, z, row.id);
+  return getById(row.id);
+}
+
 // 存一个文件：查重、写 R2、记索引。网页、/api/v1/upload 和 MCP 共用
-export async function storeFile(buf, { name = '', sourceHash = null, width = null, height = null, originalSize = null }) {
+export async function storeFile(buf, {
+  name = '', sourceHash = null, width = null, height = null, originalSize = null,
+  deskX = null, deskY = null, deskRot = null,
+}) {
   name = String(name).slice(0, 200);
   const kind = classify(name, buf);
   const isImage = kind.type.startsWith('image/');
@@ -131,7 +179,7 @@ export async function storeFile(buf, { name = '', sourceHash = null, width = nul
   if (!buf.length) throw new HttpError(400, '文件是空的');
   if (sourceHash) {
     const dup = getActiveByHash(sourceHash);
-    if (dup) return { image: toApi(dup), duplicate: true };
+    if (dup) return { image: toApi(moveOnDesk(dup, deskX, deskY, deskRot)), duplicate: true };
   }
 
   const now = Date.now();
@@ -139,15 +187,19 @@ export async function storeFile(buf, { name = '', sourceHash = null, width = nul
   // 文件的链接就是访问凭证，用 128 位随机串，猜不到
   const id = isImage ? now.toString(36) + randomBytes(3).toString('hex') : randomBytes(16).toString('base64url');
   const key = `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${id}.${kind.ext}`;
+  const spot = nextDeskSpot();
+  const x = deskX ?? spot.x;
+  const y = deskY ?? spot.y;
+  const rot = deskRot ?? spot.rot;
 
   await putObject(key, buf, kind.type, {
     name, width, height, 'original-size': originalSize, 'source-hash': sourceHash, created: now,
   });
   try {
     const { lastInsertRowid } = db.prepare(`
-      INSERT INTO images (key, name, mime, size, original_size, width, height, source_hash, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(key, name, kind.type, buf.length, originalSize, width, height, sourceHash, now);
+      INSERT INTO images (key, name, mime, size, original_size, width, height, source_hash, created_at, x, y, rot, z)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(key, name, kind.type, buf.length, originalSize, width, height, sourceHash, now, x, y, rot, spot.z);
     return { image: toApi(getById(Number(lastInsertRowid))) };
   } catch (err) {
     // 同一张图几乎同时传了两次：保留先到的，删掉刚写进 R2 的这份
@@ -159,7 +211,6 @@ export async function storeFile(buf, { name = '', sourceHash = null, width = nul
 }
 
 export async function handleThumb(req, res, id) {
-  requireSession(req, res);
   const row = getById(id);
   if (!row || row.deleted_at) throw new HttpError(404, '没有这张图');
   const buf = await readBody(req, 2 * 1024 * 1024);
@@ -170,9 +221,8 @@ export async function handleThumb(req, res, id) {
   send(res, 200, { image: toApi(getById(id)) });
 }
 
-// ---------- 底片库 ----------
+// ---------- 文件列表 ----------
 export function handleList(req, res, url) {
-  requireSession(req, res);
   send(res, 200, listPage(url));
 }
 
@@ -210,17 +260,15 @@ export const forAi = ({ id, kind, url, name, mime, size, width, height, createdA
   ({ id, kind, name, url, mime, size, width, height, createdAt: new Date(createdAt).toISOString() });
 
 export function handleApiList(req, res, url) {
-  requireApiToken(req, 'read');
   const page = listPage(url);
   send(res, 200, { items: page.items.map(forAi), nextCursor: page.nextCursor });
 }
 
 export function handleApiGet(req, res, id) {
-  requireApiToken(req, 'read');
   send(res, 200, forAi(activeFile(id)));
 }
 
-// 没进废纸篓的文件，带上 R2 里的 key
+// 没进回收站的文件，带上 R2 里的 key
 export function activeFile(id) {
   const row = getById(id);
   if (!row || row.deleted_at) throw new HttpError(404, '没有这个文件');
@@ -228,7 +276,6 @@ export function activeFile(id) {
 }
 
 export function handleMonths(req, res) {
-  requireSession(req, res);
   const rows = db.prepare(`
     SELECT ${MONTH_SQL} AS month, COUNT(*) AS count FROM images
     WHERE deleted_at IS NULL GROUP BY month ORDER BY month DESC`).all();
@@ -236,21 +283,18 @@ export function handleMonths(req, res) {
 }
 
 export function handleByHash(req, res, hash) {
-  requireSession(req, res);
   const row = /^[0-9a-f]{64}$/.test(hash) ? getActiveByHash(hash) : null;
   send(res, 200, { image: row ? toApi(row) : null });
 }
 
 export function handleStats(req, res) {
-  requireSession(req, res);
   const active = db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes FROM images WHERE deleted_at IS NULL').get();
   const trash = db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes FROM images WHERE deleted_at IS NOT NULL').get();
   send(res, 200, { count: active.count, bytes: active.bytes, trashCount: trash.count, trashBytes: trash.bytes, trashDays: config.trashDays });
 }
 
-// ---------- 废纸篓 ----------
+// ---------- 回收站 ----------
 export async function handleMoveToTrash(req, res) {
-  requireSession(req, res);
   const ids = parseIds(await readJson(req));
   const now = Date.now();
   const stmt = db.prepare('UPDATE images SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL');
@@ -259,13 +303,11 @@ export async function handleMoveToTrash(req, res) {
 }
 
 export function handleTrashList(req, res) {
-  requireSession(req, res);
   const rows = db.prepare(`${SELECT} WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC`).all();
   send(res, 200, { items: rows.map(toApi), trashDays: config.trashDays });
 }
 
 export async function handleRestore(req, res) {
-  requireSession(req, res);
   const ids = parseIds(await readJson(req));
   let restored = 0;
   const conflicts = [];
@@ -273,7 +315,7 @@ export async function handleRestore(req, res) {
     try {
       restored += Number(db.prepare('UPDATE images SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL').run(id).changes);
     } catch {
-      conflicts.push(id); // 同一张图后来又传过一次，恢复会重复
+      conflicts.push(id);
     }
   }
   send(res, 200, { restored, conflicts });
@@ -291,7 +333,6 @@ async function purgeRows(rows) {
 }
 
 export async function handlePurge(req, res) {
-  requireSession(req, res);
   const body = await readJson(req);
   const rows = Array.isArray(body.ids)
     ? parseIds(body).map(getById).filter((r) => r?.deleted_at)

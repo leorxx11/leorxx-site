@@ -1,10 +1,11 @@
-// MCP 服务：让 AI 直接列出、搜索、读取、上传暗房里的文件
+// MCP 服务：让 AI 直接列出、搜索、读取、上传桌面里的文件
 // Streamable HTTP 传输，无状态：每个 POST 是一条（或一批）JSON-RPC 消息，直接回 JSON，不开 SSE
 // 地址 /api/mcp，令牌放 Authorization: Bearer；不支持自定义请求头的客户端用 /api/mcp/<令牌>
+// 工具按令牌权限给：读取 → list_files、read_file；上传 → upload_file
 
 import { createHash } from 'node:crypto';
-import { config } from './config.js';
 import { apiTokenScopes } from './auth.js';
+import { config } from './config.js';
 import { HttpError, readBody, send } from './http.js';
 import { activeFile, forAi, listPage, storeFile } from './images.js';
 import { getObject } from './r2.js';
@@ -16,17 +17,17 @@ const IMAGE_MAX = 5 * 1024 * 1024;   // 再大的图模型也看不清，还容�
 const PDF_MAX = 20 * 1024 * 1024;
 const UPLOAD_MAX = 15 * 1024 * 1024; // base64 之后约 20 MB，在 Caddy 的请求体上限之内
 
-const INSTRUCTIONS = `暗房（Darkroom）是 Leo 的私人云端文件库，存着图片、文档、PDF、音视频等。
-用 list_files 按文件名关键词、类型、月份查找文件；用 read_file 读内容（文本可分段读，图片和 PDF 直接给原文件）；有上传权限时可以用 upload_file 存文件。
+const INSTRUCTIONS = `桌面（Desk）是 Leo 的云端桌面与文件库，存着图片、文档、PDF、音视频等。
+用 list_files 按文件名关键词、类型、月份查找文件；用 read_file 读内容（文本可分段读，图片和 PDF 直接给原文件）；用 upload_file 存文件（上传后会自动出现在桌面上）。
 每个文件都有一个公开但猜不到的链接（url），可以直接给用户。`;
 
 // ---------- 工具 ----------
 const TOOLS = [
   {
-    scope: 'read',
     name: 'list_files',
+    scope: 'read',
     title: '列出 / 搜索文件',
-    description: '按时间倒序列出暗房里的文件。query 搜原文件名（空格分开的词都要命中，不搜内容）。返回每个文件的 id、名字、类型、大小、链接；内容用 read_file 读。',
+    description: '按时间倒序列出桌面里的文件。query 搜原文件名（空格分开的词都要命中，不搜内容）。返回每个文件的 id、名字、类型、大小、链接；内容用 read_file 读。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -42,7 +43,6 @@ const TOOLS = [
     run: listFiles,
   },
   {
-    scope: 'read',
     name: 'read_file',
     title: '读取文件',
     description: `读一个文件的内容。文本类（md、txt、代码、json、csv……）按 UTF-8 返回，大文件用 offset 分段读（单位是字节，返回里有 next_offset）；图片（≤${IMAGE_MAX / 1024 / 1024} MB）直接返回图像；PDF（≤${PDF_MAX / 1024 / 1024} MB）作为附件返回；音视频和其他格式只返回信息和链接。`,
@@ -57,13 +57,14 @@ const TOOLS = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
+    scope: 'read',
     run: readFile,
   },
   {
-    scope: 'upload',
     name: 'upload_file',
+    scope: 'upload',
     title: '上传文件',
-    description: `把一个文件存进暗房，返回它的链接。文本内容放 text，二进制（图片、PDF 等）放 base64，二选一，上限 ${UPLOAD_MAX / 1024 / 1024} MB。文件类型按 name 的扩展名判断，所以名字要带扩展名。同样的内容传过会直接返回原来的链接。`,
+    description: `把一个文件存进桌面，返回它的链接。文本内容放 text，二进制（图片、PDF 等）放 base64，二选一，上限 ${UPLOAD_MAX / 1024 / 1024} MB。文件类型按 name 的扩展名判断，所以名字要带扩展名。同样的内容传过会直接返回原来的链接。`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -80,6 +81,7 @@ const TOOLS = [
 ];
 
 const toolsFor = (scopes) => TOOLS.filter((t) => scopes.includes(t.scope));
+
 const textResult = (text, extra = {}) => ({ content: [{ type: 'text', text }], ...extra });
 const json = (v) => JSON.stringify(v, null, 1);
 
@@ -175,7 +177,6 @@ const rpcError = (id, code, message) => ({ jsonrpc: '2.0', id: id ?? null, error
 
 async function dispatch(msg, scopes) {
   if (!msg || msg.jsonrpc !== '2.0' || typeof msg.method !== 'string') {
-    // 客户端发来的响应（比如回应我们的请求）直接忽略；格式不对的请求报错
     return msg && ('result' in msg || 'error' in msg) ? null : rpcError(msg?.id, -32600, 'Invalid Request');
   }
   const isNotification = !('id' in msg);
@@ -188,7 +189,7 @@ async function dispatch(msg, scopes) {
       return ok({
         protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'darkroom', title: '暗房', version: '1.0.0', websiteUrl: `${config.origin}/darkroom` },
+        serverInfo: { name: 'desk', title: '桌面', version: '1.1.0', websiteUrl: `${config.origin}/desk` },
         instructions: INSTRUCTIONS,
       });
     }
@@ -205,7 +206,6 @@ async function dispatch(msg, scopes) {
       try {
         return ok(await tool.run(p.arguments || {}));
       } catch (err) {
-        // 工具自己的错误（文件不存在、参数不对）交给模型看，让它自己调整
         if (!(err instanceof HttpError) || err.status >= 500) console.error('MCP 工具出错：', err);
         return ok(textResult(err.message || '出错了', { isError: true }));
       }
@@ -217,7 +217,6 @@ async function dispatch(msg, scopes) {
 }
 
 export async function handleMcp(req, res, pathToken) {
-  // 无状态服务：不提供服务端推送的 SSE 流，也没有会话可删
   if (req.method !== 'POST') return send(res, 405, { error: '只支持 POST' }, { allow: 'POST' });
   const scopes = apiTokenScopes(req, pathToken || undefined);
 

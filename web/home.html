@@ -11,7 +11,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-180.png?v=2">
 <title>Leo's corner</title>
-<meta name="description" content="Leo 的个人站点：暗房，以及几个私有小服务。">
+<meta name="description" content="Leo 的个人站点：桌面，以及几个私有小服务。">
 <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
 <!-- Inter 放在自己服务器上（国内也能快速加载），提前预载，尽量在首屏文字画出来之前就到 -->
 <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -191,9 +191,9 @@
 
     <p class="lead" style="--i:1">我是 <span id="dia">Leo</span>，一名开发者。相信好的体验来自克制的设计与高效的代码，喜欢自己动手把常用的工具做轻、做稳。</p>
 
-    <p style="--i:2">我写了<a class="chip" href="/darkroom" data-svc="img"><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect class="sq" x="1" y="1" width="14" height="14" rx="3.8"/><circle cx="5.6" cy="5.6" r="1.45" fill="#fb7185"/><path d="M3.1 12.1 6.8 8l2.4 2.4 1.8-1.7 2 3.4Z" fill="#fafafa"/></svg></span>暗房</a>作为私人图床与文件柜，同时在自己的机器上<span class="nw">维护着<a class="chip" href="https://st.leorxx.xyz" data-svc="st"><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect class="sq" x="1" y="1" width="14" height="14" rx="3.8"/><path d="M4.6 4.7h6.8L8 8.6Z" fill="#fbbf24"/><path d="M8 8.4v3.4M5.9 11.8h4.2" fill="none" stroke="#fafafa" stroke-width="1.35" stroke-linecap="round"/></svg></span>酒馆</a>、</span><span class="nw">自动部署的<a class="chip" href="https://ci.leorxx.xyz" data-svc="ci"><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect class="sq" x="1" y="1" width="14" height="14" rx="3.8"/><path d="M4.6 5.5 7.5 8l-2.9 2.5" fill="none" stroke="#fafafa" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 10.6h2.8" fill="none" stroke="#34d399" stroke-width="1.55" stroke-linecap="round"/></svg></span>流水线</a>，</span>以及监控节点状态的 <span class="nw"><a class="u-link" style="--u: var(--u-green); --at: 760ms" href="https://tz.leorxx.xyz">探针</a>。</span></p>
+    <p style="--i:2">我写了<a class="chip" href="/desk" data-svc="img"><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect class="sq" x="1" y="1" width="14" height="14" rx="3.8"/><rect x="3.4" y="3.6" width="5.2" height="5.2" rx="1.1" fill="#fbbf24"/><rect x="7.6" y="7.2" width="5" height="5" rx="1.1" fill="#fafafa"/><circle cx="11.2" cy="4.8" r="1.2" fill="#60a5fa"/></svg></span>桌面</a>作为私人画布与文件中转台，同时在自己的机器上<span class="nw">维护着<a class="chip" href="https://st.leorxx.xyz" data-svc="st"><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect class="sq" x="1" y="1" width="14" height="14" rx="3.8"/><path d="M4.6 4.7h6.8L8 8.6Z" fill="#fbbf24"/><path d="M8 8.4v3.4M5.9 11.8h4.2" fill="none" stroke="#fafafa" stroke-width="1.35" stroke-linecap="round"/></svg></span>酒馆</a>、</span><span class="nw">自动部署的<a class="chip" href="https://ci.leorxx.xyz" data-svc="ci"><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect class="sq" x="1" y="1" width="14" height="14" rx="3.8"/><path d="M4.6 5.5 7.5 8l-2.9 2.5" fill="none" stroke="#fafafa" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 10.6h2.8" fill="none" stroke="#34d399" stroke-width="1.55" stroke-linecap="round"/></svg></span>流水线</a>，</span>以及监控节点状态的 <span class="nw"><a class="u-link" style="--u: var(--u-green); --at: 760ms" href="https://tz.leorxx.xyz">探针</a>。</span></p>
 
-    <p style="--i:3">本站与暗房的 <a class="u-link" style="--u: var(--u-violet); --at: 920ms" href="https://github.com/leorxx11/leorxx-site" target="_blank" rel="noopener">源码</a> 均已开源在 GitHub。</p>
+    <p style="--i:3">本站与桌面的 <a class="u-link" style="--u: var(--u-violet); --at: 920ms" href="https://github.com/leorxx11/leorxx-site" target="_blank" rel="noopener">源码</a> 均已开源在 GitHub。</p>
 
     <hr style="--i:4">
 
@@ -297,13 +297,13 @@
   });
 
   // ---- 子站：在线检测 ----
-  // 由服务器端探测（见 img/src/server.js 的 /api/status），浏览器跨站探测会被 CORP 等响应头挡住
+  // 由服务器端探测（见 src/server.js 的 /api/status），浏览器跨站探测会被 CORP 等响应头挡住
   const chips = document.querySelectorAll('[data-svc]');
 
   async function checkServices() {
     let data = null;
     try {
-      const r = await fetch('/status', { cache: 'no-store' });
+      const r = await fetch('/api/status', { cache: 'no-store' });
       if (r.ok) data = await r.json();
     } catch {}
     chips.forEach((a) => {

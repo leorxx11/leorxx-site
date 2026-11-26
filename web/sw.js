@@ -1,9 +1,9 @@
-// 整站共用的 Service Worker：主页（/）和暗房（/darkroom）合起来是一个 App
-// 页面和脚本网络优先，断网时用缓存打开；接口、图片、机房数据、在线状态一律直连网络，不缓存
+// 整站共用的 Service Worker：主页（/）和桌面（/desk）合起来是一个 App
+// 页面和脚本网络优先，断网时用缓存打开；接口（含在线状态）和文件一律直连网络，不缓存
 
-const CACHE = 'leorxx-shell-v3';
-const PAGES = ['/', '/darkroom'];
-const BYPASS = ['/api/', '/i/', '/komari/', '/status'];
+const CACHE = 'leorxx-shell-v6';
+const PAGES = ['/', '/desk'];
+const BYPASS = ['/api/', '/i/'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PAGES)).then(() => self.skipWaiting()));

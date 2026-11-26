@@ -1,4 +1,5 @@
 // 登录：通行密钥 + Cookie 会话；首次绑定或恢复用一次性初始化码
+// API 令牌给脚本和 AI 用。哪些接口要登录、哪些要令牌，在 server.js 的路由表里统一标注
 
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import {
@@ -76,7 +77,7 @@ function verifySetupCode(code, ip) {
 export function announceSetupCodeIfNeeded() {
   if (passkeyCount() > 0) return;
   const code = createSetupCode();
-  console.log(`\n  还没有绑定通行密钥。初始化码：${code}（30 分钟内有效）\n  过期了就重启服务，或执行 node cli.js setup-code\n`);
+  console.log(`\n  还没有绑定通行密钥。初始化码：${code}（30 分钟内有效）\n  过期了就重启服务，或执行 node src/cli.js setup-code\n`);
 }
 
 // ---------- 会话 ----------
@@ -92,7 +93,7 @@ function createSession(req, res) {
   setSessionCookie(res, token);
 }
 
-// 有效会话返回 { tokenHash }，没有返回 null；离到期不足 29 天时顺手续期
+// 有效会话返回 { tokenHash }，没有返回 null；每天第一次访问时顺手续期
 export function authenticate(req, res) {
   const token = parseCookies(req)[SESSION_COOKIE];
   if (!token) return null;
@@ -130,12 +131,10 @@ export const listApiTokens = () => db.prepare('SELECT substr(token_hash, 1, 12) 
 export const revokeApiToken = (name) => Number(db.prepare('DELETE FROM api_tokens WHERE name = ?').run(name).changes);
 
 export function handleListTokens(req, res) {
-  requireSession(req, res);
   send(res, 200, { tokens: listApiTokens() });
 }
 
 export async function handleCreateToken(req, res) {
-  requireSession(req, res);
   const { name, scopes } = await readJson(req);
   const clean = String(name || '').trim().slice(0, 40);
   if (!clean) throw new HttpError(400, '给令牌起个名字');
@@ -146,7 +145,6 @@ export async function handleCreateToken(req, res) {
 }
 
 export function handleDeleteToken(req, res, id) {
-  requireSession(req, res);
   const { changes } = db.prepare('DELETE FROM api_tokens WHERE substr(token_hash, 1, 12) = ?').run(id);
   if (!changes) throw new HttpError(404, '没有这个令牌');
   send(res, 200, { ok: true });
@@ -298,7 +296,7 @@ export async function handleLoginVerify(req, res) {
 
 export async function handleLogout(req, res) {
   const body = await readJson(req);
-  const s = requireSession(req, res);
+  const s = req.session;
   if (body.others) {
     const { changes } = db.prepare('DELETE FROM sessions WHERE token_hash != ?').run(s.tokenHash);
     return send(res, 200, { ok: true, removed: Number(changes) });
@@ -309,14 +307,12 @@ export async function handleLogout(req, res) {
 }
 
 export function handleListPasskeys(req, res) {
-  requireSession(req, res);
   const rows = db.prepare('SELECT id, name, created_at, last_used_at FROM passkeys ORDER BY created_at').all();
   const sessions = db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE expires_at > ?').get(Date.now()).n;
   send(res, 200, { passkeys: rows, sessions });
 }
 
 export function handleDeletePasskey(req, res, id) {
-  requireSession(req, res);
   if (passkeyCount() <= 1) throw new HttpError(400, '至少要留一把通行密钥，不然就进不来了');
   db.prepare('DELETE FROM passkeys WHERE id = ?').run(id);
   send(res, 200, { ok: true });
