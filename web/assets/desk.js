@@ -32,7 +32,7 @@ let panX = 0;
 let panY = 0;
 let zoom = 1;
 let cameraReady = false;
-let tool = 'select';
+let tool = 'hand'; // 进来默认是抓手，拖哪儿都是平移
 let penColor = 'ink';
 let spaceHeld = false;
 let flyAnim = null;
@@ -96,10 +96,10 @@ export function init() {
   bindHudEvents();
 
   window.addEventListener('darkroom:changed', () => { stale = true; });
-  // 登录或退出：放下手里的选中和工具（访客只有选择和抓手），画布内容由上面的 stale 重新加载
+  // 登录或退出：放下手里的选中，回到抓手（访客只有选择和抓手），画布内容由上面的 stale 重新加载
   window.addEventListener('darkroom:auth', () => {
     clearSelection();
-    setTool('select');
+    setTool('hand');
     toggleLayouts(false);
   });
   window.addEventListener('darkroom:theme', () => {
@@ -1046,7 +1046,7 @@ async function dropFilesOntoDesk(fileList, screenX, screenY) {
   }
 }
 
-// ---------- HUD 按钮、理齐/散落、小地图、搜索与快捷键 ----------
+// ---------- HUD 按钮、散落、小地图、搜索与快捷键 ----------
 function bindHudEvents() {
   $('#desk-dock').addEventListener('click', (e) => {
     const b = e.target.closest('.d-tool[data-tool]');
@@ -1109,20 +1109,8 @@ function bindHudEvents() {
     }
   });
 
-  // 理齐 / 散落：「散落」按钮上写着当前的摆法，点它按这种摆法再摆一次；
-  // 旁边的小箭头展开摆法菜单，选一种立刻按它摆，按钮上的字也换成它
-  // 卡片自己会动过去，不再弹「已理齐」之类的提示
-  $('#desk-tidy').addEventListener('click', () => {
-    relayoutCards((cards) => {
-      const cols = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(cards.length))));
-      cards.forEach((c, idx) => {
-        c.data.x = (idx % cols) * 258;
-        c.data.y = Math.floor(idx / cols) * 232;
-        c.data.rot = 0;
-      });
-    });
-  });
-
+  // 散落：按钮上写着当前的摆法，点它按这种摆法再摆一次；
+  // 旁边的小箭头展开摆法菜单，选一种立刻按它摆，按钮上的字也换成它。卡片自己会动过去，不弹提示
   syncScatterButton();
   $('#desk-scatter').addEventListener('click', () => {
     toggleLayouts(false);
@@ -1201,7 +1189,7 @@ function bindHudEvents() {
       if (!$('#desk-search').hidden) { $('#desk-search').hidden = true; return; }
       if (previewId !== null && !document.activeElement?.isContentEditable) { closePanel(); return; }
       if (document.activeElement?.isContentEditable) document.activeElement.blur();
-      else { clearSelection(); setTool('select'); }
+      else { clearSelection(); setTool('hand'); }
       return;
     }
     if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
@@ -1478,7 +1466,7 @@ function jumpFromMinimap(e) {
   applyCamera();
 }
 
-// ---------- 理齐、散落 ----------
+// ---------- 散落 ----------
 const FRAME_PAD = 28;
 
 // run(cards, { raise, step }) 改卡片的位置；摆完整体挪到原点附近、镜头装下全部。
