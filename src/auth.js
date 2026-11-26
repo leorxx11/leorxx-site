@@ -1,4 +1,5 @@
 // 登录：通行密钥 + Cookie 会话；首次绑定或恢复用一次性初始化码
+// API 令牌给脚本和 AI 用。哪些接口要登录、哪些要令牌，在 server.js 的路由表里统一标注
 
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import {
@@ -76,7 +77,7 @@ function verifySetupCode(code, ip) {
 export function announceSetupCodeIfNeeded() {
   if (passkeyCount() > 0) return;
   const code = createSetupCode();
-  console.log(`\n  还没有绑定通行密钥。初始化码：${code}（30 分钟内有效）\n  过期了就重启服务，或执行 node cli.js setup-code\n`);
+  console.log(`\n  还没有绑定通行密钥。初始化码：${code}（30 分钟内有效）\n  过期了就重启服务，或执行 node src/cli.js setup-code\n`);
 }
 
 // ---------- 会话 ----------
@@ -92,7 +93,7 @@ function createSession(req, res) {
   setSessionCookie(res, token);
 }
 
-// 有效会话返回 { tokenHash }，没有返回 null；离到期不足 29 天时顺手续期
+// 有效会话返回 { tokenHash }，没有返回 null；每天第一次访问时顺手续期
 export function authenticate(req, res) {
   const token = parseCookies(req)[SESSION_COOKIE];
   if (!token) return null;
@@ -111,6 +112,60 @@ export function requireSession(req, res) {
   const s = authenticate(req, res);
   if (!s) throw new HttpError(401, '请先登录');
   return s;
+}
+
+// ---------- API 令牌（给自己的后端程序和 AI 用）----------
+// upload：上传；read：列出、搜索文件。都不能删除
+export const TOKEN_SCOPES = ['upload', 'read'];
+const tokenLimiter = rateLimiter({ max: 20, window: 10 * 60e3 });
+
+export function createApiToken(name, scopes = ['upload']) {
+  const token = `dr_${b64url(randomBytes(32))}`;
+  db.prepare('INSERT INTO api_tokens (token_hash, name, scopes, created_at) VALUES (?, ?, ?, ?)')
+    .run(sha256(token), name, scopes.join(','), Date.now());
+  return token;
+}
+
+export const listApiTokens = () => db.prepare('SELECT substr(token_hash, 1, 12) AS id, name, scopes, created_at, last_used_at FROM api_tokens ORDER BY created_at').all();
+
+export const revokeApiToken = (name) => Number(db.prepare('DELETE FROM api_tokens WHERE name = ?').run(name).changes);
+
+export function handleListTokens(req, res) {
+  send(res, 200, { tokens: listApiTokens() });
+}
+
+export async function handleCreateToken(req, res) {
+  const { name, scopes } = await readJson(req);
+  const clean = String(name || '').trim().slice(0, 40);
+  if (!clean) throw new HttpError(400, '给令牌起个名字');
+  const picked = TOKEN_SCOPES.filter((s) => Array.isArray(scopes) && scopes.includes(s));
+  if (!picked.length) throw new HttpError(400, '至少选一项权限');
+  if (listApiTokens().length >= 20) throw new HttpError(400, '令牌最多 20 个，先删掉不用的');
+  send(res, 200, { token: createApiToken(clean, picked) });
+}
+
+export function handleDeleteToken(req, res, id) {
+  const { changes } = db.prepare('DELETE FROM api_tokens WHERE substr(token_hash, 1, 12) = ?').run(id);
+  if (!changes) throw new HttpError(404, '没有这个令牌');
+  send(res, 200, { ok: true });
+}
+
+// 校验令牌，返回它的权限列表。令牌默认取 Authorization: Bearer，MCP 也可以把令牌放在地址里传进来
+export function apiTokenScopes(req, token = (req.headers.authorization || '').match(/^Bearer (\S+)$/)?.[1]) {
+  const ip = clientIp(req);
+  tokenLimiter.check(ip);
+  const hash = token && sha256(token);
+  const row = hash && db.prepare('SELECT scopes FROM api_tokens WHERE token_hash = ?').get(hash);
+  if (!row) {
+    tokenLimiter.add(ip);
+    throw new HttpError(401, '令牌无效');
+  }
+  db.prepare('UPDATE api_tokens SET last_used_at = ? WHERE token_hash = ?').run(Date.now(), hash);
+  return row.scopes.split(',');
+}
+
+export function requireApiToken(req, scope) {
+  if (!apiTokenScopes(req).includes(scope)) throw new HttpError(403, `这个令牌没有 ${scope} 权限`);
 }
 
 // ---------- 挑战（注册 / 登录过程中的一次性随机数）----------
@@ -241,7 +296,7 @@ export async function handleLoginVerify(req, res) {
 
 export async function handleLogout(req, res) {
   const body = await readJson(req);
-  const s = requireSession(req, res);
+  const s = req.session;
   if (body.others) {
     const { changes } = db.prepare('DELETE FROM sessions WHERE token_hash != ?').run(s.tokenHash);
     return send(res, 200, { ok: true, removed: Number(changes) });
@@ -252,14 +307,12 @@ export async function handleLogout(req, res) {
 }
 
 export function handleListPasskeys(req, res) {
-  requireSession(req, res);
   const rows = db.prepare('SELECT id, name, created_at, last_used_at FROM passkeys ORDER BY created_at').all();
   const sessions = db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE expires_at > ?').get(Date.now()).n;
   send(res, 200, { passkeys: rows, sessions });
 }
 
 export function handleDeletePasskey(req, res, id) {
-  requireSession(req, res);
   if (passkeyCount() <= 1) throw new HttpError(400, '至少要留一把通行密钥，不然就进不来了');
   db.prepare('DELETE FROM passkeys WHERE id = ?').run(id);
   send(res, 200, { ok: true });

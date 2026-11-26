@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Leo's corner">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-180.png?v=2">
+<title>Leo's corner</title>
+<meta name="description" content="Leo 的个人站点：桌面，以及几个私有小服务。">
+<link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml">
+<!-- Inter 放在自己服务器上（国内也能快速加载），提前预载，尽量在首屏文字画出来之前就到 -->
+<link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+  // 尽早套用手动选过的深浅色，避免刷新时闪一下
+  try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+</script>
+<style>
+  /* Inter（Copyright 2016 The Inter Project Authors，SIL Open Font License 1.1）
+     取自 Google Fonts 的拉丁字符子集，一个可变字体文件同时覆盖 400 和 500 两个字重；中文仍用系统字体 */
+  @font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 400 500;
+    font-display: swap;
+    src: url("/fonts/inter-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  :root {
+    --bg: #ffffff;
+    --text-1: #1a1a1a;
+    --text-2: #6b6b6b;
+    --text-3: #9b9b9b;
+    --fill: #f4f4f5;
+    --fill-hover: #ebebec;
+    --stroke: #ebebeb;
+    --u-green: #10a37f;
+    --u-violet: #7c5cff;
+    --ok: #2d7a53;
+    --bad: #b84a41;
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a0a0a; --text-1: #ededef; --text-2: #8e8e93; --text-3: #5e5e64;
+      --fill: #18181b; --fill-hover: #232327; --stroke: #232326;
+      --u-green: #34d399; --u-violet: #a78bfa;
+      --ok: #3fb67b; --bad: #d9655b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a0a0a; --text-1: #ededef; --text-2: #8e8e93; --text-3: #5e5e64;
+    --fill: #18181b; --fill-hover: #232327; --stroke: #232326;
+    --u-green: #34d399; --u-violet: #a78bfa;
+    --ok: #3fb67b; --bad: #d9655b;
+    color-scheme: dark;
+  }
+
+  @view-transition { navigation: auto; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .26s; animation-timing-function: ease; }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text-1);
+    font-family: var(--sans); font-size: 14.75px; line-height: 1.86;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: color-mix(in srgb, #34d399 28%, transparent); }
+  .switching *, .switching *::before, .switching *::after { transition: none !important; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* 一屏、居中、窄栏 */
+  main {
+    min-height: 100svh; display: flex; flex-direction: column; justify-content: center;
+    padding: 64px max(24px, env(safe-area-inset-right)) calc(64px + env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  }
+  .col { width: 100%; max-width: 33.6rem; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
+
+  /* 顶部头像，点一下会轻轻晃一晃 */
+  .mark { align-self: flex-start; }
+  .avatar {
+    display: block; width: 40px; height: 40px; border-radius: 50%;
+    background: #fff; box-shadow: 0 0 0 1px var(--stroke);
+    transform-origin: 50% 80%; cursor: pointer; user-select: none; -webkit-user-drag: none;
+  }
+  .mark.wobble .avatar { animation: wobble .42s ease-in-out; }
+  @keyframes wobble {
+    0%, 100% { rotate: 0deg; }
+    25% { rotate: -5.5deg; }
+    55% { rotate: 3.8deg; }
+    80% { rotate: -1.8deg; }
+  }
+
+  .col p { margin: 0; color: var(--text-2); text-wrap: pretty; }
+  .col p.lead { color: var(--text-1); }
+
+  /* 彩色延迟细下划线 + 悬停底色上浮；每个链接用 --u 指定自己的颜色 */
+  .u-link {
+    position: relative; display: inline-block; color: var(--text-1); padding: 0 1px; z-index: 1; line-height: 1.35;
+  }
+  .u-link::before {
+    content: ""; position: absolute; inset: -1px -3px -2px; z-index: -1; border-radius: 4px;
+    background: color-mix(in srgb, var(--u) 13%, transparent);
+    transform: scaleY(0); transform-origin: bottom; transition: transform .2s ease;
+  }
+  .u-link:hover::before, .u-link:focus-visible::before { transform: scaleY(1); }
+  .u-link::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; border-radius: 999px;
+    background: color-mix(in srgb, var(--u) 62%, transparent);
+    transform-origin: left; transition: background-color .2s ease;
+  }
+  .u-link:hover::after, .u-link:focus-visible::after { background: var(--u); }
+  .u-link:focus-visible { outline: none; }
+
+  /* 子站：句子里的小胶囊。图标右上角的小点是在线状态 */
+  .nw { white-space: nowrap; }
+  .chip {
+    position: relative; display: inline-flex; align-items: center; gap: .42em;
+    margin: 0 .28em; padding: .28em .58em .28em .42em; border-radius: 999px;
+    background: var(--fill); color: var(--text-1); font-size: .92em; line-height: 1;
+    vertical-align: middle; translate: 0 -.07em;
+    transition: background-color .2s;
+  }
+  .nw > .chip { margin-right: 0; }
+  .chip:hover { background: var(--fill-hover); }
+  .chip:active { background: var(--stroke); }
+  .chip:focus-visible { outline: 2px solid color-mix(in srgb, var(--text-1) 15%, transparent); outline-offset: 2px; }
+  .ic { position: relative; display: grid; }
+  .ic svg { width: 14px; height: 14px; display: block; }
+  .ic .sq { fill: #18181b; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .ic .sq { fill: #27272c; stroke: rgb(255 255 255 / .12); stroke-width: .8px; }
+  }
+  :root[data-theme="dark"] .ic .sq { fill: #27272c; stroke: rgb(255 255 255 / .12); stroke-width: .8px; }
+  .ic::after {
+    content: ""; position: absolute; top: -1.5px; right: -1.5px; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--text-3); box-shadow: 0 0 0 1.5px var(--fill); opacity: 0;
+    transition: opacity .3s, background-color .3s, box-shadow .2s;
+  }
+  .chip:hover .ic::after { box-shadow: 0 0 0 1.5px var(--fill-hover); }
+  [data-state="ok"] .ic::after { background: var(--ok); opacity: 1; }
+  [data-state="bad"] .ic::after { background: var(--bad); opacity: 1; }
+
+  hr { margin: 0; border: 0; border-top: 1px solid var(--stroke); }
+
+  /* 页脚：签名 + 小图标组 */
+  footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .sig { display: block; height: 34px; width: auto; overflow: visible; color: var(--text-1); opacity: .9; }
+  .sig path { fill: none; stroke: currentColor; stroke-width: 2.15; stroke-linecap: round; stroke-linejoin: round; }
+  .actions { display: flex; align-items: center; gap: 4px; }
+  .icon-btn {
+    display: grid; place-items: center; width: 26px; height: 26px; padding: 0;
+    border: 0; border-radius: 6px; background: none; color: var(--text-3); cursor: pointer;
+    transition: color .16s, background-color .16s;
+  }
+  .icon-btn:hover { color: var(--text-1); background: var(--fill); }
+  .icon-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--text-1) 15%, transparent); outline-offset: 2px; }
+  .icon-btn svg { width: 13px; height: 13px; }
+
+  /* 先出字、后走动效：
+     1) 40ms–550ms：整页 6 个块快速利落浮现（每块 280ms、间隔 45ms），Leo 留白待显
+     2) 520ms–2120ms：等文字基本落定后，名字 Leo 再缓缓扫过五色棱镜光带（1600ms）
+     3) 720ms–2300ms：细下划线划出、页脚签名从容收尾 */
+  @media (prefers-reduced-motion: no-preference) {
+    .col > * { animation: rise .28s cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(40ms + var(--i, 0) * 45ms); }
+    @keyframes rise { from { opacity: 0; translate: 0 4px; } }
+
+    .u-link::after { animation: line-draw .52s cubic-bezier(.22, 1, .36, 1) var(--at, 780ms) both; }
+    @keyframes line-draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+    .sig path { stroke-dasharray: 1 2; stroke-dashoffset: 1.02; animation: draw 1.12s cubic-bezier(.35, 0, .25, 1) .68s forwards; }
+    .sig path + path { animation-duration: .4s; animation-timing-function: ease-out; animation-delay: 1.88s; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1 class="sr-only">Leo's corner</h1>
+  <div class="col">
+    <div class="mark" id="mark" style="--i:0">
+      <img class="avatar" src="/avatar.webp" alt="Leo 的头像" width="40" height="40" draggable="false">
+    </div>
+
+    <p class="lead" style="--i:1">我是 <span id="dia">Leo</span>，一名开发者。相信好的体验来自克制的设计与高效的代码，喜欢自己动手把常用的工具做轻、做稳。</p>
+
+    <p style="--i:2">我写了<a class="chip" href="/desk" data-svc="img"><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect class="sq" x="1" y="1" width="14" height="14" rx="3.8"/><rect x="3.4" y="3.6" width="5.2" height="5.2" rx="1.1" fill="#fbbf24"/><rect x="7.6" y="7.2" width="5" height="5" rx="1.1" fill="#fafafa"/><circle cx="11.2" cy="4.8" r="1.2" fill="#60a5fa"/></svg></span>桌面</a>作为私人画布与文件中转台，同时在自己的机器上<span class="nw">维护着<a class="chip" href="https://st.leorxx.xyz" data-svc="st"><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect class="sq" x="1" y="1" width="14" height="14" rx="3.8"/><path d="M4.6 4.7h6.8L8 8.6Z" fill="#fbbf24"/><path d="M8 8.4v3.4M5.9 11.8h4.2" fill="none" stroke="#fafafa" stroke-width="1.35" stroke-linecap="round"/></svg></span>酒馆</a>、</span><span class="nw">自动部署的<a class="chip" href="https://ci.leorxx.xyz" data-svc="ci"><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect class="sq" x="1" y="1" width="14" height="14" rx="3.8"/><path d="M4.6 5.5 7.5 8l-2.9 2.5" fill="none" stroke="#fafafa" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 10.6h2.8" fill="none" stroke="#34d399" stroke-width="1.55" stroke-linecap="round"/></svg></span>流水线</a>，</span>以及监控节点状态的 <span class="nw"><a class="u-link" style="--u: var(--u-green); --at: 760ms" href="https://tz.leorxx.xyz">探针</a>。</span></p>
+
+    <p style="--i:3">本站与桌面的 <a class="u-link" style="--u: var(--u-violet); --at: 920ms" href="https://github.com/leorxx11/leorxx-site" target="_blank" rel="noopener">源码</a> 均已开源在 GitHub。</p>
+
+    <hr style="--i:4">
+
+    <footer style="--i:5">
+      <svg class="sig" viewBox="0 0 84 42" role="img" aria-label="Leo">
+        <path pathLength="1" d="M 8 30 C 14 23, 21 12, 23 6 C 24 3, 20 3, 18 8 C 16 14, 14 24, 17 29 C 19 32, 24 30, 28 25 C 32 21, 36 17, 34 15 C 32 13, 27 17, 27 24 C 27 29, 33 31, 39 26 C 42 23, 45 18, 50 18 C 55 18, 56 24, 52 28 C 48 31, 43 28, 44 22 C 45 17, 51 17, 55 20 C 59 22, 64 21, 69 19"/>
+        <path pathLength="1" d="M 11 36.5 Q 40 33.5 72 34.5"/>
+      </svg>
+      <div class="actions">
+        <a class="icon-btn" href="https://github.com/leorxx11/leorxx-site" target="_blank" rel="noopener" aria-label="GitHub">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.2a6.8 6.8 0 0 0-2.15 13.25c.34.06.46-.15.46-.33v-1.16c-1.89.41-2.29-.91-2.29-.91-.31-.78-.75-.99-.75-.99-.62-.42.05-.41.05-.41.68.05 1.04.7 1.04.7.61 1.04 1.59.74 1.98.57.06-.44.24-.74.43-.91-1.51-.17-3.1-.76-3.1-3.37 0-.74.26-1.35.7-1.83-.07-.17-.3-.86.07-1.8 0 0 .57-.18 1.87.7a6.5 6.5 0 0 1 3.4 0c1.3-.88 1.87-.7 1.87-.7.37.94.14 1.63.07 1.8.44.48.7 1.09.7 1.83 0 2.62-1.59 3.2-3.11 3.37.25.21.46.63.46 1.27v1.88c0 .18.12.4.47.33A6.8 6.8 0 0 0 8 1.2Z"/></svg>
+        </a>
+        <button type="button" class="icon-btn" id="theme"></button>
+      </div>
+    </footer>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = (s, el = document) => el.querySelector(s);
+  const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- 名字五色棱镜扫光显影（等正文浮现后再从容扫过） ----
+  const SWEEP = ['#c679c4', '#fa3d1d', '#ffb005', '#e1e1fe', '#0358f7'];
+  const easeInOutSine = (t) => 0.5 - 0.5 * Math.cos(Math.PI * t);
+
+  function playDia(el, { delay = 520, duration = 1600, band = 64 } = {}) {
+    if (!el || reduced()) return;
+    const half = band / 2;
+    el.style.color = 'transparent';
+    el.style.webkitBackgroundClip = 'text';
+    el.style.backgroundClip = 'text';
+    el.style.backgroundImage = 'none';
+
+    const t0 = performance.now() + delay;
+    function frame(now) {
+      if (now < t0) { requestAnimationFrame(frame); return; }
+      const p = Math.min(1, (now - t0) / duration);
+      if (p >= 1) {
+        el.style.color = '';
+        el.style.backgroundImage = '';
+        el.style.webkitBackgroundClip = '';
+        el.style.backgroundClip = '';
+        return;
+      }
+      const h = -half + (100 + band) * easeInOutSine(p);
+      const l = h - half;
+      const r = h + half;
+      const stops = [
+        `var(--text-1) ${Math.min(0, l).toFixed(2)}%`,
+        `var(--text-1) ${l.toFixed(2)}%`,
+        ...SWEEP.map((c, i) => `${c} ${(l + (i / 4) * band).toFixed(2)}%`),
+        `transparent ${r.toFixed(2)}%`,
+        `transparent ${Math.max(100, r).toFixed(2)}%`,
+      ];
+      el.style.backgroundImage = `linear-gradient(90deg, ${stops.join(', ')})`;
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+  playDia($('#dia'));
+
+  // ---- 顶部头像点击轻晃彩蛋 ----
+  const mark = $('#mark');
+  mark.addEventListener('click', () => {
+    if (reduced()) return;
+    mark.classList.remove('wobble');
+    void mark.offsetWidth;
+    mark.classList.add('wobble');
+  });
+
+  // ---- 深浅色 ----
+  const root = document.documentElement;
+  const store = { set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+  const isDark = () => root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const SUN = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="2.75"/><path d="M8 1.5v1.25M8 13.25v1.25M1.5 8h1.25M13.25 8h1.25M3.4 3.4l.9.9M11.7 11.7l.9.9M3.4 12.6l.9-.9M11.7 4.3l.9-.9"/></svg>';
+  const MOON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.2 9.8A5.5 5.5 0 0 1 6.2 2.8a5.5 5.5 0 1 0 7 7Z"/></svg>';
+
+  const syncTheme = () => {
+    const dark = isDark();
+    $('#theme').innerHTML = dark ? SUN : MOON;
+    $('#theme').setAttribute('aria-label', dark ? '切换到浅色' : '切换到深色');
+    if (root.dataset.theme) {
+      document.querySelectorAll('meta[name=theme-color]').forEach((m) => { m.content = dark ? '#0a0a0a' : '#ffffff'; });
+    }
+  };
+  syncTheme();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
+
+  const toggle = () => {
+    root.classList.add('switching');
+    root.dataset.theme = isDark() ? 'light' : 'dark';
+    store.set('theme', root.dataset.theme);
+    syncTheme();
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('switching')));
+  };
+  $('#theme').addEventListener('click', () => {
+    if (document.startViewTransition && !reduced()) document.startViewTransition(toggle);
+    else toggle();
+  });
+
+  // ---- 子站：在线检测 ----
+  // 由服务器端探测（见 src/server.js 的 /api/status），浏览器跨站探测会被 CORP 等响应头挡住
+  const chips = document.querySelectorAll('[data-svc]');
+
+  async function checkServices() {
+    let data = null;
+    try {
+      const r = await fetch('/api/status', { cache: 'no-store' });
+      if (r.ok) data = await r.json();
+    } catch {}
+    chips.forEach((a) => {
+      const s = data?.[a.dataset.svc];
+      a.dataset.state = !s ? 'unknown' : s.up ? 'ok' : 'bad';
+    });
+  }
+  checkServices();
+  setInterval(() => { if (!document.hidden) checkServices(); }, 60000);
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "leorxx-site",
+  "private": true,
+  "type": "module",
+  "description": "leorxx.xyz 整站：单栏主页 + 基于 Cloudflare R2 的无限画布与文件中转台",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "reindex": "node --env-file=.env src/cli.js reindex"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "^14.0.3",
+    "aws4fetch": "^1.0.20"
+  }
+}

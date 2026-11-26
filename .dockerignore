@@ -1,0 +1,6 @@
+# 镜像里只需要 package.json、src/、web/
+*
+!package.json
+!package-lock.json
+!src
+!web

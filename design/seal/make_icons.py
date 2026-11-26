@@ -4,7 +4,7 @@
 
 依赖 fontTools 和 rsvg-convert（brew install librsvg）。
 字母用 Playfair Display Bold Italic（SIL OFL）转成路径，图标不依赖字体。
-输出到 home/：favicon.svg、icon-180/192/512.png、icon-maskable-512.png
+输出到 web/：favicon.svg、icon-180/192/512.png、icon-maskable-512.png
 """
 
 import re
@@ -18,7 +18,7 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 
 HERE = Path(__file__).parent
-OUT = HERE.parent.parent / 'home'
+OUT = HERE.parent.parent / 'web'
 CACHE = HERE / '.cache'
 FONT = CACHE / 'PlayfairDisplay-BoldItalic.ttf'
 

@@ -1,57 +1,27 @@
 # 追加在服务器 /opt/komari-server/Caddyfile 末尾（caddy 容器里是 /etc/caddy/Caddyfile）
-# 主页文件在 /opt/komari-server/static/home，容器里挂载为 /srv/static/home
-# 主页和暗房同在 leorxx.xyz 下，合起来是一个 PWA；图片单独走 img.leorxx.xyz
+# 主页和桌面由同一个 darkroom 容器提供，Caddy 只负责 HTTPS、压缩和转发；图片单独走 img.leorxx.xyz
 
 leorxx.xyz {
 	encode zstd gzip
 
-	# 主页读 Komari 的数据，走内网同源转发，绕开 Komari 的跨域检查
-	handle /komari/nodes {
-		rewrite * /api/nodes
-		reverse_proxy komari:25774 {
-			header_up -Origin
-		}
+	request_body {
+		max_size 105MB
 	}
-	handle /komari/rpc2 {
-		rewrite * /api/rpc2
-		reverse_proxy komari:25774 {
-			header_up -Origin
-		}
-	}
-
-	# 目录里的在线状态，由暗房后端在服务器端探测
-	handle /status {
-		rewrite * /api/status
-		reverse_proxy darkroom:3100
-	}
-
-	# 暗房：页面、接口、脚本样式
-	@darkroom path /darkroom /darkroom/ /api/* /assets/*
-	handle @darkroom {
-		request_body {
-			max_size 25MB
-		}
-		reverse_proxy darkroom:3100
-	}
-
-	handle {
-		root * /srv/static/home
-		file_server
-	}
+	reverse_proxy darkroom:3100
 }
 
 www.leorxx.xyz {
 	redir https://leorxx.xyz{uri} permanent
 }
 
-# 只负责出图；其他地址都转到 leorxx.xyz/darkroom
-# /sw.js 由暗房返回一个自我注销的脚本，清掉以前单独装在这个域名上的 Service Worker
+# 只负责出图和文件；其他地址都转到 leorxx.xyz/desk
+# /sw.js 由后端返回一个自我注销的脚本，清掉以前单独装在这个域名上的 Service Worker
 img.leorxx.xyz {
 	@served path /i/* /sw.js
 	handle @served {
 		reverse_proxy darkroom:3100
 	}
 	handle {
-		redir https://leorxx.xyz/darkroom 302
+		redir https://leorxx.xyz/desk 302
 	}
 }

@@ -1,10 +1,9 @@
-// 图片：上传、列表、废纸篓、出图、从 R2 重建索引
+// 图片和文件：上传、列表、废纸篓、出图、从 R2 重建索引
 
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { config } from './config.js';
 import { db, tx } from './db.js';
-import { requireSession } from './auth.js';
 import { HttpError, readBody, readJson, send } from './http.js';
 import { deleteObject, getObject, headMeta, listAll, putObject } from './r2.js';
 
@@ -24,15 +23,66 @@ function sniff(b) {
   return null;
 }
 
+// 图片以外的文件按扩展名定出图类型，不信任客户端给的 Content-Type。
+// 文本一律当 text/plain 出（HTML、SVG、JS 也是），浏览器不会执行；认不出的一律下载
+const TEXT_EXTS = new Set(`txt md markdown mdx csv tsv json jsonl ndjson yaml yml toml ini conf cfg env log xml html htm svg
+  css scss less js mjs cjs ts tsx jsx vue svelte py ipynb rb go rs java kt kts swift c h cc cpp hpp cs m php pl sh bash zsh fish ps1 bat
+  sql graphql proto r jl lua dart scala ex exs erl hs clj tex bib srt vtt diff patch rst adoc org`.split(/\s+/));
+const MEDIA_TYPES = {
+  pdf: 'application/pdf',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac',
+  mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+};
+const extOf = (name) => (name.match(/\.([a-z0-9]{1,10})$/i)?.[1] || '').toLowerCase();
+
+function classify(name, buf) {
+  const img = sniff(buf);
+  if (img) return img;
+  const ext = extOf(name);
+  if (TEXT_EXTS.has(ext)) return { type: 'text/plain', ext };
+  if (MEDIA_TYPES[ext]) return { type: MEDIA_TYPES[ext], ext };
+  return { type: 'application/octet-stream', ext: ext || 'bin' };
+}
+
+export function kindOf(mime) {
+  if (mime.startsWith('image/')) return 'image';
+  if (mime === 'text/plain') return 'text';
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime.startsWith('audio/')) return 'audio';
+  if (mime.startsWith('video/')) return 'video';
+  return 'other';
+}
+
 const thumbKeyFor = (key) => `thumbs/${key.replace(/\.[^./]+$/, '')}.webp`;
 const validKey = (key) => /^[\w\-./]{1,200}$/.test(key) && !key.includes('..') && !key.startsWith('/');
 const intOrNull = (v) => (Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : null);
+const floatOrNull = (v, min = -1e5, max = 1e5) => {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : null;
+};
+
+function nextDeskSpot() {
+  const { cnt, maxZ } = db.prepare(
+    'SELECT COUNT(*) AS cnt, COALESCE(MAX(z), 0) AS maxZ FROM images WHERE deleted_at IS NULL',
+  ).get();
+  const angle = cnt * 2.39996 + (Math.random() - 0.5) * 0.25;
+  const radius = cnt === 0 ? 0 : 142 * Math.sqrt(cnt);
+  return {
+    x: Math.round(Math.cos(angle) * radius * 1.18),
+    y: Math.round(Math.sin(angle) * radius * 0.86),
+    rot: Number(((Math.random() - 0.5) * 3.4).toFixed(2)),
+    z: maxZ + 1,
+  };
+}
 
 function toApi(row) {
+  const kind = kindOf(row.mime);
   return {
     id: row.id,
+    kind,
     url: `${config.imageOrigin}/i/${row.key}`,
-    thumb: `${config.imageOrigin}/i/${row.thumb_key || row.key}`,
+    thumb: kind === 'image' ? `${config.imageOrigin}/i/${row.thumb_key || row.key}` : null,
     name: row.name,
     mime: row.mime,
     size: row.size,
@@ -43,7 +93,19 @@ function toApi(row) {
     createdAt: row.created_at,
     deletedAt: row.deleted_at,
     purgeAt: row.deleted_at ? row.deleted_at + config.trashDays * DAY : null,
+    x: row.x ?? 0,
+    y: row.y ?? 0,
+    w: row.w ?? null,
+    rot: row.rot ?? 0,
+    z: row.z ?? 0,
   };
+}
+
+// 画布和列表是同一批文件：没进回收站的都摆在桌上
+export function listDeskFiles() {
+  return db.prepare(`${SELECT} WHERE deleted_at IS NULL ORDER BY z ASC, id ASC LIMIT 2000`)
+    .all()
+    .map(toApi);
 }
 
 const SELECT = `SELECT *, ${MONTH_SQL} AS month FROM images`;
@@ -58,49 +120,97 @@ function parseIds(body) {
 
 // ---------- 上传 ----------
 export async function handleUpload(req, res) {
-  requireSession(req, res);
-  const sourceHash = /^[0-9a-f]{64}$/.test(req.headers['x-source-hash'] || '') ? req.headers['x-source-hash'] : null;
+  return ingest(req, res);
+}
+
+// 给后端程序用：请求体是文件原始字节，服务器自己算哈希查重
+export async function handleApiUpload(req, res) {
+  return ingest(req, res, { hashBody: true });
+}
+
+async function ingest(req, res, { hashBody = false } = {}) {
+  const deskX = floatOrNull(req.headers['x-desk-x']);
+  const deskY = floatOrNull(req.headers['x-desk-y']);
+  const deskRot = floatOrNull(req.headers['x-desk-rot'], -45, 45);
+  let sourceHash = /^[0-9a-f]{64}$/.test(req.headers['x-source-hash'] || '') ? req.headers['x-source-hash'] : null;
   if (sourceHash) {
     const dup = getActiveByHash(sourceHash);
-    if (dup) { req.resume(); return send(res, 200, { image: toApi(dup), duplicate: true }); }
+    if (dup) {
+      req.resume();
+      return send(res, 200, { image: toApi(moveOnDesk(dup, deskX, deskY, deskRot)), duplicate: true });
+    }
   }
 
-  const buf = await readBody(req, config.maxBytes);
-  const kind = sniff(buf);
-  if (!kind) throw new HttpError(415, '只收 PNG、JPEG、GIF、WebP、AVIF');
+  const buf = await readBody(req, Math.max(config.maxBytes, config.maxFileBytes));
   const rawName = String(req.headers['x-filename'] || '');
   let name;
   try { name = decodeURIComponent(rawName); } catch { name = rawName; }
-  name = name.slice(0, 200);
+  if (hashBody && !sourceHash) sourceHash = createHash('sha256').update(buf).digest('hex');
+  send(res, 200, await storeFile(buf, {
+    name,
+    sourceHash,
+    width: intOrNull(req.headers['x-width']),
+    height: intOrNull(req.headers['x-height']),
+    originalSize: intOrNull(req.headers['x-original-size']),
+    deskX,
+    deskY,
+    deskRot,
+  }));
+}
+
+// 重复上传时如果带了落点，就把原来那张挪到落点、放到最上层
+function moveOnDesk(row, deskX, deskY, deskRot) {
+  if (deskX === null || deskY === null) return row;
+  const { z } = nextDeskSpot();
+  db.prepare('UPDATE images SET x = ?, y = ?, rot = ?, z = ? WHERE id = ?').run(deskX, deskY, deskRot ?? row.rot ?? 0, z, row.id);
+  return getById(row.id);
+}
+
+// 存一个文件：查重、写 R2、记索引。网页、/api/v1/upload 和 MCP 共用
+export async function storeFile(buf, {
+  name = '', sourceHash = null, width = null, height = null, originalSize = null,
+  deskX = null, deskY = null, deskRot = null,
+}) {
+  name = String(name).slice(0, 200);
+  const kind = classify(name, buf);
+  const isImage = kind.type.startsWith('image/');
+  const limit = isImage ? config.maxBytes : config.maxFileBytes;
+  if (buf.length > limit) throw new HttpError(413, `${isImage ? '图片' : '文件'}超过 ${Math.round(limit / 1024 / 1024)} MB`);
+  if (!buf.length) throw new HttpError(400, '文件是空的');
+  if (sourceHash) {
+    const dup = getActiveByHash(sourceHash);
+    if (dup) return { image: toApi(moveOnDesk(dup, deskX, deskY, deskRot)), duplicate: true };
+  }
 
   const now = Date.now();
   const d = new Date(now + 8 * 3600e3); // 北京时间的年月
-  const id = now.toString(36) + randomBytes(3).toString('hex');
+  // 文件的链接就是访问凭证，用 128 位随机串，猜不到
+  const id = isImage ? now.toString(36) + randomBytes(3).toString('hex') : randomBytes(16).toString('base64url');
   const key = `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${id}.${kind.ext}`;
-  const width = intOrNull(req.headers['x-width']);
-  const height = intOrNull(req.headers['x-height']);
-  const originalSize = intOrNull(req.headers['x-original-size']);
+  const spot = nextDeskSpot();
+  const x = deskX ?? spot.x;
+  const y = deskY ?? spot.y;
+  const rot = deskRot ?? spot.rot;
 
   await putObject(key, buf, kind.type, {
     name, width, height, 'original-size': originalSize, 'source-hash': sourceHash, created: now,
   });
   try {
     const { lastInsertRowid } = db.prepare(`
-      INSERT INTO images (key, name, mime, size, original_size, width, height, source_hash, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(key, name, kind.type, buf.length, originalSize, width, height, sourceHash, now);
-    send(res, 200, { image: toApi(getById(Number(lastInsertRowid))) });
+      INSERT INTO images (key, name, mime, size, original_size, width, height, source_hash, created_at, x, y, rot, z)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(key, name, kind.type, buf.length, originalSize, width, height, sourceHash, now, x, y, rot, spot.z);
+    return { image: toApi(getById(Number(lastInsertRowid))) };
   } catch (err) {
     // 同一张图几乎同时传了两次：保留先到的，删掉刚写进 R2 的这份
     const dup = sourceHash && getActiveByHash(sourceHash);
     if (!dup) throw err;
     await deleteObject(key).catch(() => {});
-    send(res, 200, { image: toApi(dup), duplicate: true });
+    return { image: toApi(dup), duplicate: true };
   }
 }
 
 export async function handleThumb(req, res, id) {
-  requireSession(req, res);
   const row = getById(id);
   if (!row || row.deleted_at) throw new HttpError(404, '没有这张图');
   const buf = await readBody(req, 2 * 1024 * 1024);
@@ -111,14 +221,25 @@ export async function handleThumb(req, res, id) {
   send(res, 200, { image: toApi(getById(id)) });
 }
 
-// ---------- 底片库 ----------
+// ---------- 文件列表 ----------
 export function handleList(req, res, url) {
-  requireSession(req, res);
+  send(res, 200, listPage(url));
+}
+
+// 底片库和 /api/v1/files 共用：q 搜原文件名（空格分开的词都要命中），kind 是 image / file 或具体类型
+export function listPage(url) {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 60));
   const where = ['deleted_at IS NULL'];
   const args = [];
-  const q = (url.searchParams.get('q') || '').trim();
-  if (q) { where.push(`name LIKE ? ESCAPE '\\'`); args.push(`%${q.replace(/[\\%_]/g, '\\$&')}%`); }
+  for (const word of (url.searchParams.get('q') || '').trim().split(/\s+/).filter(Boolean).slice(0, 8)) {
+    where.push(`name LIKE ? ESCAPE '\\'`); args.push(`%${word.replace(/[\\%_]/g, '\\$&')}%`);
+  }
+  const kind = url.searchParams.get('kind') || '';
+  if (kind === 'image') where.push(`mime LIKE 'image/%'`);
+  else if (kind === 'file') where.push(`mime NOT LIKE 'image/%'`);
+  else if (kind === 'text') where.push(`mime = 'text/plain'`);
+  else if (kind === 'pdf') where.push(`mime = 'application/pdf'`);
+  else if (kind === 'audio' || kind === 'video') { where.push('mime LIKE ?'); args.push(`${kind}/%`); }
   const month = url.searchParams.get('month') || '';
   if (/^\d{4}-\d{2}$/.test(month)) { where.push(`${MONTH_SQL} = ?`); args.push(month); }
   const cursor = (url.searchParams.get('cursor') || '').match(/^(\d+)-(\d+)$/);
@@ -131,11 +252,30 @@ export function handleList(req, res, url) {
   const more = rows.length > limit;
   const items = rows.slice(0, limit).map(toApi);
   const last = items.at(-1);
-  send(res, 200, { items, nextCursor: more && last ? `${last.createdAt}-${last.id}` : null });
+  return { items, nextCursor: more && last ? `${last.createdAt}-${last.id}` : null };
+}
+
+// ---------- 给 AI / 程序读：带 read 权限的令牌 ----------
+export const forAi = ({ id, kind, url, name, mime, size, width, height, createdAt }) =>
+  ({ id, kind, name, url, mime, size, width, height, createdAt: new Date(createdAt).toISOString() });
+
+export function handleApiList(req, res, url) {
+  const page = listPage(url);
+  send(res, 200, { items: page.items.map(forAi), nextCursor: page.nextCursor });
+}
+
+export function handleApiGet(req, res, id) {
+  send(res, 200, forAi(activeFile(id)));
+}
+
+// 没进回收站的文件，带上 R2 里的 key
+export function activeFile(id) {
+  const row = getById(id);
+  if (!row || row.deleted_at) throw new HttpError(404, '没有这个文件');
+  return { ...toApi(row), key: row.key };
 }
 
 export function handleMonths(req, res) {
-  requireSession(req, res);
   const rows = db.prepare(`
     SELECT ${MONTH_SQL} AS month, COUNT(*) AS count FROM images
     WHERE deleted_at IS NULL GROUP BY month ORDER BY month DESC`).all();
@@ -143,21 +283,18 @@ export function handleMonths(req, res) {
 }
 
 export function handleByHash(req, res, hash) {
-  requireSession(req, res);
   const row = /^[0-9a-f]{64}$/.test(hash) ? getActiveByHash(hash) : null;
   send(res, 200, { image: row ? toApi(row) : null });
 }
 
 export function handleStats(req, res) {
-  requireSession(req, res);
   const active = db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes FROM images WHERE deleted_at IS NULL').get();
   const trash = db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes FROM images WHERE deleted_at IS NOT NULL').get();
   send(res, 200, { count: active.count, bytes: active.bytes, trashCount: trash.count, trashBytes: trash.bytes, trashDays: config.trashDays });
 }
 
-// ---------- 废纸篓 ----------
+// ---------- 回收站 ----------
 export async function handleMoveToTrash(req, res) {
-  requireSession(req, res);
   const ids = parseIds(await readJson(req));
   const now = Date.now();
   const stmt = db.prepare('UPDATE images SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL');
@@ -166,13 +303,11 @@ export async function handleMoveToTrash(req, res) {
 }
 
 export function handleTrashList(req, res) {
-  requireSession(req, res);
   const rows = db.prepare(`${SELECT} WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC`).all();
   send(res, 200, { items: rows.map(toApi), trashDays: config.trashDays });
 }
 
 export async function handleRestore(req, res) {
-  requireSession(req, res);
   const ids = parseIds(await readJson(req));
   let restored = 0;
   const conflicts = [];
@@ -180,7 +315,7 @@ export async function handleRestore(req, res) {
     try {
       restored += Number(db.prepare('UPDATE images SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL').run(id).changes);
     } catch {
-      conflicts.push(id); // 同一张图后来又传过一次，恢复会重复
+      conflicts.push(id);
     }
   }
   send(res, 200, { restored, conflicts });
@@ -198,7 +333,6 @@ async function purgeRows(rows) {
 }
 
 export async function handlePurge(req, res) {
-  requireSession(req, res);
   const body = await readJson(req);
   const rows = Array.isArray(body.ids)
     ? parseIds(body).map(getById).filter((r) => r?.deleted_at)
@@ -221,9 +355,9 @@ export async function handleImage(req, res, path) {
   let key;
   try { key = decodeURIComponent(path.slice(3)); } catch { key = ''; }
   // 只对库里存在、且不在废纸篓里的图出图
-  const known = validKey(key) && db.prepare(
-    'SELECT 1 FROM images WHERE (key = ? OR thumb_key = ?) AND deleted_at IS NULL LIMIT 1').get(key, key);
-  if (!known) return send(res, 404, 'Not found');
+  const row = validKey(key) && db.prepare(
+    'SELECT key, name, mime FROM images WHERE (key = ? OR thumb_key = ?) AND deleted_at IS NULL LIMIT 1').get(key, key);
+  if (!row) return send(res, 404, 'Not found');
 
   const fwd = {};
   for (const h of ['range', 'if-none-match', 'if-modified-since']) if (req.headers[h]) fwd[h] = req.headers[h];
@@ -241,6 +375,15 @@ export async function handleImage(req, res, path) {
     if (v) headers[h] = v;
   }
   headers['cache-control'] ||= 'public, max-age=31536000, immutable';
+  if (row.key === key && !row.mime.startsWith('image/')) {
+    // 类型以库里为准；文本统一按 UTF-8 纯文本出，认不出的强制下载
+    const kind = kindOf(row.mime);
+    headers['content-type'] = kind === 'text' ? 'text/plain; charset=utf-8' : row.mime;
+    const fallback = row.name.replace(/[^\x20-\x7e]|["\\]/g, '_') || 'file';
+    headers['content-disposition'] = `${kind === 'other' ? 'attachment' : 'inline'}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(row.name || 'file')}`;
+    // Chrome 的 PDF 阅读器在 sandbox 里打不开；PDF 单独一个源、不带登录态，放开也无妨
+    if (kind === 'pdf') delete headers['content-security-policy'];
+  }
   res.writeHead(r.status, headers);
   if (req.method === 'HEAD' || !r.body || r.status === 304) return res.end();
   Readable.fromWeb(r.body).pipe(res);
