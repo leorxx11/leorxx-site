@@ -1,8 +1,8 @@
 # Leo's corner
 
-[leorxx.xyz](https://leorxx.xyz) 的源码：一个杂志排版风格的个人小站，加上一个只给自己用的图床「暗房」。两者在同一个域名下，可以合起来装成一个 PWA。
+[leorxx.xyz](https://leorxx.xyz) 的源码：一个简洁的单栏个人小站，加上一个只给自己用的图床「暗房」。两者在同一个域名下，可以合起来装成一个 PWA。
 
-- **主页**：报头、目录、机房三个栏目。目录列出各个子站并显示在线状态，机房栏实时显示每台服务器的负载（数据来自 [Komari](https://github.com/komari-monitor/komari) 探针）。
+- **主页**：一屏几段介绍文字，子站以小胶囊的形式嵌在句子里，图标上的小圆点显示在线状态；页脚是一个会自己写出来的签名。
 - **暗房**：用通行密钥登录的私人图床，图片存在 Cloudflare R2。
 
 ## 暗房
@@ -29,6 +29,8 @@
 ```
 home/                 主页，纯静态，由 Caddy 直接提供
   index.html
+  avatar.webp         头像
+  fonts/              Inter 拉丁字符子集，自托管（SIL Open Font License 1.1）
   manifest.json       整站共用的 PWA 配置
   sw.js               整站共用的 Service Worker
 img/                  暗房，Node 22.13+，无框架
@@ -48,7 +50,7 @@ docs/
 ```
 leorxx.xyz            ─┬─ /                          → 主页静态文件
                        ├─ /darkroom /api/* /assets/* → darkroom 容器
-                       ├─ /komari/*                  → Komari（主页读机房数据）
+                       ├─ /komari/*                  → Komari（旧版主页读机房数据用，现在没有页面用到）
                        └─ /status                    → darkroom（服务器端探测各子站是否在线）
 img.leorxx.xyz        ─── /i/*                       → darkroom 容器 → R2
 ```
@@ -99,4 +101,4 @@ npm install
 npm start               # 打开 http://localhost:3100/darkroom，初始化码打印在终端里
 ```
 
-`localhost` 不用 HTTPS 也能使用通行密钥。主页是单个 HTML 文件，直接用浏览器打开就能看排版；机房和在线状态两栏，要部署到服务器上才有数据。
+`localhost` 不用 HTTPS 也能使用通行密钥。主页是单个 HTML 文件，直接用浏览器打开就能看排版；子站的在线状态要部署到服务器上才有数据。
