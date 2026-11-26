@@ -2,8 +2,9 @@
 // 访客（没登录）只能看：可以平移缩放、选中复制、预览，也能在本地拖动卡片，但什么都不保存
 
 import {
-  $, api, copy, copyButton, esc, extLabel, fmtLabel, fmtLong, fmtSize, fmtSwitch, formatLink, getFmt, isGuest, onFmtChange, toast,
+  $, api, copy, copyButton, esc, extLabel, fmtLabel, fmtLong, fmtSize, fmtSwitch, formatLink, getFmt, isGuest, onFmtChange, store, toast,
 } from './lib.js';
+import { LAYOUTS } from './layouts.js';
 import { renderPreview } from './preview.js';
 import { normalizeFileName, uploadFileToDesk } from './uploader.js';
 
@@ -99,6 +100,7 @@ export function init() {
   window.addEventListener('darkroom:auth', () => {
     clearSelection();
     setTool('select');
+    toggleLayouts(false);
   });
   window.addEventListener('darkroom:theme', () => {
     if (!active) return;
@@ -127,6 +129,7 @@ export async function enter(arg) {
 export function leave() {
   active = false;
   toggleHelp(false);
+  toggleLayouts(false);
   $('#desk-menu').hidden = true;
   $('#desk-search').hidden = true;
   closePanel();
@@ -322,7 +325,10 @@ function renderFrames() {
     });
     t.addEventListener('blur', () => {
       t.contentEditable = 'false';
-      f.title = t.textContent.trim() || '分区';
+      const title = t.textContent.trim() || '分区';
+      // 改过标题的分区就是自己的了，换摆法时不再收走
+      if (title !== f.title) delete f.auto;
+      f.title = title;
       pushHistory();
       scheduleSave({ board: true });
     });
@@ -609,6 +615,7 @@ function setTool(t) {
   $('#desk-surface').dataset.tool = t;
   $('#desk-dock').querySelectorAll('.d-tool[data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === t));
   $('#desk-penbar').hidden = t !== 'pen';
+  if (t === 'pen') toggleLayouts(false);
 }
 
 function createNoteAt(wx, wy, text = '', tint = 'amber') {
@@ -1102,46 +1109,31 @@ function bindHudEvents() {
     }
   });
 
-  // 理齐 / 散落
-  function relayoutCards(mutator) {
-    const cards = allCards();
-    if (!cards.length) return;
-    $('#desk-cards').querySelectorAll('.d-card').forEach((el) => el.classList.add('animating'));
-    mutator(cards);
-    for (const c of cards) {
-      const el = $(`.d-card[data-key="${c.key}"]`, $('#desk-cards'));
-      if (el) el.style.transform = cardTransform(c.data.x, c.data.y, c.data.rot);
-    }
-    renderConnectors();
-    pushHistory();
-    scheduleSave({ fileIds: files.map((f) => f.id), board: notes.length > 0 });
-    animateCamera(window.innerWidth / 2, window.innerHeight / 2, 1, 420);
-  }
-
+  // 理齐 / 散落：「散落」按钮上写着当前的摆法，点它按这种摆法再摆一次；
+  // 旁边的小箭头展开摆法菜单，选一种立刻按它摆，按钮上的字也换成它
+  // 卡片自己会动过去，不再弹「已理齐」之类的提示
   $('#desk-tidy').addEventListener('click', () => {
     relayoutCards((cards) => {
       const cols = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(cards.length))));
-      const rows = Math.ceil(cards.length / cols);
       cards.forEach((c, idx) => {
-        c.data.x = Math.round((idx % cols - (cols - 1) / 2) * 258);
-        c.data.y = Math.round((Math.floor(idx / cols) - (rows - 1) / 2) * 232);
+        c.data.x = (idx % cols) * 258;
+        c.data.y = Math.floor(idx / cols) * 232;
         c.data.rot = 0;
       });
     });
-    toast('已按网格理齐', true);
   });
 
+  syncScatterButton();
   $('#desk-scatter').addEventListener('click', () => {
-    relayoutCards((cards) => {
-      cards.forEach((c, i) => {
-        const angle = i * 2.39996 + (Math.random() - 0.5) * 0.35;
-        const radius = i === 0 ? 18 : 144 * Math.sqrt(i) + (Math.random() - 0.5) * 24;
-        c.data.x = Math.round(Math.cos(angle) * radius * 1.2);
-        c.data.y = Math.round(Math.sin(angle) * radius * 0.86);
-        c.data.rot = Number(((Math.random() - 0.5) * 4.0).toFixed(2));
-      });
-    });
-    toast('已随机摊开', true);
+    toggleLayouts(false);
+    applyLayout(currentLayout());
+  });
+  $('#desk-scatter-more').addEventListener('click', () => toggleLayouts());
+  $('#desk-layouts').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-layout]');
+    if (!b) return;
+    toggleLayouts(false);
+    applyLayout(b.dataset.layout);
   });
 
   // 悬浮操作条按钮
@@ -1173,6 +1165,7 @@ function bindHudEvents() {
   $('#desk-help-btn').addEventListener('click', () => toggleHelp());
   document.addEventListener('pointerdown', (e) => {
     if (!$('#desk-help').hidden && !e.target.closest('#desk-help, #desk-help-btn')) toggleHelp(false);
+    if (!$('#desk-layouts').hidden && !e.target.closest('#desk-layouts, #desk-scatter-more')) toggleLayouts(false);
   }, true);
   // 不是苹果设备时按键写成 Ctrl / Shift
   if (!/mac|iphone|ipad/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent)) {
@@ -1204,6 +1197,7 @@ function bindHudEvents() {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); return; }
     if (e.key === 'Escape') {
       if (!$('#desk-help').hidden) { toggleHelp(false); return; }
+      if (!$('#desk-layouts').hidden) { toggleLayouts(false); return; }
       if (!$('#desk-search').hidden) { $('#desk-search').hidden = true; return; }
       if (previewId !== null && !document.activeElement?.isContentEditable) { closePanel(); return; }
       if (document.activeElement?.isContentEditable) document.activeElement.blur();
@@ -1356,7 +1350,15 @@ function zoomAtCenter(tz) {
   animateCamera(cx - w.x * z, cy - w.y * z, z, 220);
 }
 
-// 把一组元素整体放进视野：上面让开顶栏，下面让开工具坞，最多放大到 100%
+// 把画布上的一块区域放进视野：上面让开顶栏，下面让开工具坞，最多放大到 100%
+function fitWorld(l, t, r, b) {
+  const top = 84, bottom = 104, side = 64;
+  const availW = window.innerWidth - side * 2, availH = window.innerHeight - top - bottom;
+  const z = clamp(Math.min(availW / Math.max(1, r - l), availH / Math.max(1, b - t), 1), 0.22, 3.0);
+  animateCamera(window.innerWidth / 2 - ((l + r) / 2) * z, top + availH / 2 - ((t + b) / 2) * z, z, 420);
+}
+
+// 把一组元素整体放进视野
 function fitElements(els) {
   let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
   for (const el of els) {
@@ -1366,11 +1368,7 @@ function fitElements(els) {
   }
   if (l === Infinity) return false;
   const p1 = toWorld(l, t), p2 = toWorld(r, b);
-  const top = 84, bottom = 104, side = 64;
-  const availW = window.innerWidth - side * 2, availH = window.innerHeight - top - bottom;
-  const z = clamp(Math.min(availW / Math.max(1, p2.x - p1.x), availH / Math.max(1, p2.y - p1.y), 1), 0.22, 3.0);
-  const wx = (p1.x + p2.x) / 2, wy = (p1.y + p2.y) / 2;
-  animateCamera(window.innerWidth / 2 - wx * z, top + availH / 2 - wy * z, z, 420);
+  fitWorld(p1.x, p1.y, p2.x, p2.y);
   return true;
 }
 
@@ -1478,6 +1476,98 @@ function jumpFromMinimap(e) {
   panX = window.innerWidth / 2 - wx * zoom;
   panY = window.innerHeight / 2 - wy * zoom;
   applyCamera();
+}
+
+// ---------- 理齐、散落 ----------
+const FRAME_PAD = 28;
+
+// run(cards, { raise }) 改卡片的位置；摆完整体挪到原点附近、镜头装下全部。
+// run 返回分组时每组套一个分区框（auto）；上一次模板加的分区框先收走，自己画的不动
+function relayoutCards(run) {
+  const cards = allCards();
+  if (!cards.length) return;
+  const els = new Map(cards.map((c) => [c.key, $(`.d-card[data-key="${c.key}"]`, $('#desk-cards'))]));
+  for (const c of cards) c.h = els.get(c.key)?.offsetHeight || 160;
+  const groups = run(cards, { raise: (c) => { c.data.z = ++zTop; } }) || [];
+
+  const box = (list) => {
+    let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+    for (const c of list) {
+      l = Math.min(l, c.data.x - c.w / 2); r = Math.max(r, c.data.x + c.w / 2);
+      t = Math.min(t, c.data.y - c.h / 2); b = Math.max(b, c.data.y + c.h / 2);
+    }
+    return { l, t, r, b };
+  };
+  const all = box(cards);
+  const dx = -(all.l + all.r) / 2, dy = -(all.t + all.b) / 2;
+  for (const c of cards) {
+    c.data.x = Math.round(c.data.x + dx);
+    c.data.y = Math.round(c.data.y + dy);
+    c.data.rot = Number((c.data.rot || 0).toFixed(2));
+  }
+
+  const before = frames.length;
+  frames = frames.filter((f) => !f.auto);
+  const removed = before - frames.length;
+  for (const g of groups) {
+    if (!g.cards.length) continue;
+    const q = box(g.cards);
+    frames.push({
+      id: uid('fr'), title: g.title, auto: true,
+      x: Math.round(q.l - FRAME_PAD), y: Math.round(q.t - FRAME_PAD),
+      w: Math.round(q.r - q.l + FRAME_PAD * 2), h: Math.round(q.b - q.t + FRAME_PAD * 2),
+    });
+  }
+
+  for (const c of cards) {
+    const el = els.get(c.key);
+    if (!el) continue;
+    el.classList.add('animating');
+    el.style.transform = cardTransform(c.data.x, c.data.y, c.data.rot);
+    el.style.zIndex = c.data.z || 1;
+  }
+  clearSelection();
+  renderFrames();
+  renderConnectors();
+  drawMinimap();
+  pushHistory();
+  scheduleSave({ fileIds: files.map((f) => f.id), board: notes.length > 0 || removed > 0 || groups.length > 0 });
+
+  // 镜头装下卡片和新加的分区框（分区标题在框外面，上面多留一点）
+  const pad = groups.length ? FRAME_PAD + 30 : 0;
+  fitWorld(all.l + dx - pad, all.t + dy - pad, all.r + dx + pad, all.b + dy + pad);
+}
+
+// 当前的摆法：存在本机，第一次是随机；「散落」按钮上写的就是它
+const currentLayout = () => (LAYOUTS[store.get('desk-layout')] ? store.get('desk-layout') : 'spiral');
+
+function syncScatterButton() {
+  const name = currentLayout();
+  const btn = $('#desk-scatter');
+  btn.textContent = LAYOUTS[name].label;
+  btn.title = `按「${LAYOUTS[name].label}」再摆一次`;
+  $('#desk-layouts').querySelectorAll('[data-layout]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.layout === name)));
+}
+
+// 按某种摆法重新摆，并记成当前的
+function applyLayout(name) {
+  store.set('desk-layout', LAYOUTS[name] ? name : 'spiral');
+  syncScatterButton();
+  relayoutCards(LAYOUTS[currentLayout()].run);
+}
+
+// 摆法菜单：从小箭头上方弹出，左边和「散落」按钮对齐；右边别压住小地图
+function toggleLayouts(open = $('#desk-layouts').hidden) {
+  const menu = $('#desk-layouts');
+  if (!menu || open === !menu.hidden) return;
+  $('#desk-scatter-more').setAttribute('aria-expanded', String(open));
+  if (!open) { menu.hidden = true; return; }
+  if (tool === 'pen') setTool('select');
+  menu.hidden = false;
+  const r = $('#desk-scatter').getBoundingClientRect();
+  const mini = $('.desk-minimap-wrap')?.getBoundingClientRect();
+  const right = mini?.width ? mini.left - 10 : window.innerWidth - 8;
+  menu.style.left = `${Math.max(8, Math.min(r.left, right - menu.offsetWidth))}px`;
 }
 
 function toggleHelp(open = $('#desk-help').hidden) {

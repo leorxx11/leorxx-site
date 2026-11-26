@@ -48,6 +48,8 @@ function sanitizeBoard(b) {
     y: num(f.y, -1e5, 1e5),
     w: num(f.w, 80, 2e4, 360),
     h: num(f.h, 80, 2e4, 260),
+    // 散落模板自动加的分区框，换摆法时收走
+    ...(f.auto === true ? { auto: true } : {}),
   })).filter((f) => f.id);
 
   const connectors = (Array.isArray(b.connectors) ? b.connectors : []).slice(0, 1000).map((c) => ({

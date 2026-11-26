@@ -99,6 +99,31 @@
       <button type="button" class="d-pencolor" data-color="#f59e0b" style="background:#f59e0b" title="琥珀"></button>
     </div>
 
+    <!-- 散落的摆法（见 layouts.js）：点「散落」旁边的小箭头展开，选一种立刻按它摆，按钮上的字换成它；之后点按钮一直按这种摆。模板加的分区框，换摆法时收走 -->
+    <div class="desk-layoutmenu edit-only" id="desk-layouts" role="menu" aria-label="散落的摆法" hidden>
+      <button type="button" role="menuitemradio" aria-checked="false" data-layout="spiral">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="5" height="4" rx="1" transform="rotate(-10 4.5 4.5)"/><rect x="9" y="4" width="5" height="4" rx="1" transform="rotate(8 11.5 6)"/><rect x="4.5" y="9.5" width="5" height="4" rx="1" transform="rotate(4 7 11.5)"/></svg><span class="lm-name">随机</span><span class="lm-desc">从中心随机摊开</span><svg class="lm-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>
+      </button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-layout="pile">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4" width="9" height="7.5" rx="1.2" transform="rotate(-10 8 7.75)"/><rect x="3.5" y="4.5" width="9" height="7.5" rx="1.2" transform="rotate(7 8 8.25)"/></svg><span class="lm-name">照片堆</span><span class="lm-desc">叠在中间，像一摞照片</span><svg class="lm-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>
+      </button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-layout="timeline">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 13.5h13"/><rect x="2" y="3.5" width="3.2" height="7" rx=".8"/><rect x="6.4" y="3.5" width="3.2" height="7" rx=".8"/><rect x="11" y="3.5" width="3.2" height="7" rx=".8"/></svg><span class="lm-name">时间线</span><span class="lm-desc">按上传时间排，每月一个分区</span><svg class="lm-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>
+      </button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-layout="kinds">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2.5" width="6" height="11" rx="1.5" stroke-dasharray="2 1.6"/><rect x="9" y="2.5" width="5.5" height="11" rx="1.5" stroke-dasharray="2 1.6"/></svg><span class="lm-name">分类</span><span class="lm-desc">按类型分堆，每堆一个分区</span><svg class="lm-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>
+      </button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-layout="ring">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5" stroke-dasharray="2.4 2"/></svg><span class="lm-name">环形</span><span class="lm-desc">围成一圈，中间留白</span><svg class="lm-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>
+      </button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-layout="fan">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.25" y="2" width="3.5" height="9" rx=".9" transform="rotate(-28 8 14)"/><rect x="6.25" y="2" width="3.5" height="9" rx=".9"/><rect x="6.25" y="2" width="3.5" height="9" rx=".9" transform="rotate(28 8 14)"/></svg><span class="lm-name">扇形</span><span class="lm-desc">像手里的一把牌</span><svg class="lm-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>
+      </button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-layout="masonry">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="2" width="3.6" height="7" rx=".8"/><rect x="1.5" y="10.5" width="3.6" height="3.5" rx=".8"/><rect x="6.2" y="2" width="3.6" height="4" rx=".8"/><rect x="6.2" y="7.5" width="3.6" height="6.5" rx=".8"/><rect x="10.9" y="2" width="3.6" height="6" rx=".8"/><rect x="10.9" y="9.5" width="3.6" height="4.5" rx=".8"/></svg><span class="lm-name">拼贴墙</span><span class="lm-desc">按高度紧凑拼成几列</span><svg class="lm-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>
+      </button>
+    </div>
+
     <nav class="desk-dock" id="desk-dock" aria-label="画布工具">
       <button type="button" class="d-tool edit-only" id="desk-undo" title="撤销 ⌘Z" aria-label="撤销" disabled>
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h6a3.5 3.5 0 1 1 0 7H6.5"/><path d="M6.5 4 4 6.5 6.5 9"/></svg>
@@ -129,7 +154,13 @@
       <input type="file" id="desk-file" multiple hidden>
       <button type="button" class="d-tool edit-only" id="desk-upload" title="选择或直接拖入文件">+ 文件</button>
       <button type="button" class="d-tool hide-sm edit-only" id="desk-tidy" title="按网格理齐">理齐</button>
-      <button type="button" class="d-tool hide-sm edit-only" id="desk-scatter" title="自然随机摊开">散落</button>
+      <!-- 散落：按钮上写着当前的摆法，点它再摆一次；小箭头展开摆法菜单 -->
+      <span class="d-split hide-sm edit-only">
+        <button type="button" class="d-tool" id="desk-scatter" title="再摆一次">随机</button>
+        <button type="button" class="d-tool d-split-arrow" id="desk-scatter-more" title="换一种摆法" aria-label="换一种摆法" aria-haspopup="menu" aria-expanded="false" aria-controls="desk-layouts">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 9.75 3.5-3.5 3.5 3.5"/></svg>
+        </button>
+      </span>
       <button type="button" class="d-tool" id="desk-search-btn" title="搜索定位 (⌘K)" aria-label="搜索定位">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.25"/><path d="m10.2 10.2 3.3 3.3"/></svg>
       </button>
