@@ -1481,15 +1481,14 @@ function jumpFromMinimap(e) {
 // ---------- 理齐、散落 ----------
 const FRAME_PAD = 28;
 
-// run(cards, { raise }) 改卡片的位置；摆完整体挪到原点附近、镜头装下全部。
-// run 返回分组时每组套一个分区框（auto）；上一次模板加的分区框先收走，自己画的不动
-function relayoutCards(run) {
+// run(cards, { raise, step }) 改卡片的位置；摆完整体挪到原点附近、镜头装下全部。
+// run 返回分组时每组套一个分区框（auto）；上一次模板加的分区框先收走，自己画的不动。
+// step 是同一种摆法连着点的第几次；摆出来和现在一模一样（比如刷新后再点）就换下一个变化。返回实际用的 step
+function relayoutCards(run, step = 0) {
   const cards = allCards();
-  if (!cards.length) return;
+  if (!cards.length) return step;
   const els = new Map(cards.map((c) => [c.key, $(`.d-card[data-key="${c.key}"]`, $('#desk-cards'))]));
   for (const c of cards) c.h = els.get(c.key)?.offsetHeight || 160;
-  const groups = run(cards, { raise: (c) => { c.data.z = ++zTop; } }) || [];
-
   const box = (list) => {
     let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
     for (const c of list) {
@@ -1498,12 +1497,24 @@ function relayoutCards(run) {
     }
     return { l, t, r, b };
   };
-  const all = box(cards);
-  const dx = -(all.l + all.r) / 2, dy = -(all.t + all.b) / 2;
-  for (const c of cards) {
-    c.data.x = Math.round(c.data.x + dx);
-    c.data.y = Math.round(c.data.y + dy);
-    c.data.rot = Number((c.data.rot || 0).toFixed(2));
+  const was = new Map(cards.map((c) => [c.key, [c.data.x, c.data.y, c.data.rot || 0]]));
+  const unchanged = () => cards.every((c) => {
+    const [x, y, rot] = was.get(c.key);
+    return Math.abs(c.data.x - x) < 2 && Math.abs(c.data.y - y) < 2 && Math.abs(c.data.rot - rot) < 0.1;
+  });
+
+  let groups, all, dx, dy;
+  for (let tries = 0; ; tries++, step++) {
+    groups = run(cards, { raise: (c) => { c.data.z = ++zTop; }, step }) || [];
+    all = box(cards);
+    dx = -(all.l + all.r) / 2;
+    dy = -(all.t + all.b) / 2;
+    for (const c of cards) {
+      c.data.x = Math.round(c.data.x + dx);
+      c.data.y = Math.round(c.data.y + dy);
+      c.data.rot = Number((c.data.rot || 0).toFixed(2));
+    }
+    if (tries >= 2 || !unchanged()) break;
   }
 
   const before = frames.length;
@@ -1536,6 +1547,7 @@ function relayoutCards(run) {
   // 镜头装下卡片和新加的分区框（分区标题在框外面，上面多留一点）
   const pad = groups.length ? FRAME_PAD + 30 : 0;
   fitWorld(all.l + dx - pad, all.t + dy - pad, all.r + dx + pad, all.b + dy + pad);
+  return step;
 }
 
 // 当前的摆法：存在本机，第一次是随机；「散落」按钮上写的就是它
@@ -1549,11 +1561,16 @@ function syncScatterButton() {
   $('#desk-layouts').querySelectorAll('[data-layout]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.layout === name)));
 }
 
-// 按某种摆法重新摆，并记成当前的
+// 按某种摆法重新摆，并记成当前的。连着点同一种时每次换个变化：
+// 环形转一格、扇形洗牌、拼贴墙换列数、时间线横竖切换；随机、照片堆、分类本来就每次不一样
+let lastLayout = null;
+let layoutStep = 0;
 function applyLayout(name) {
-  store.set('desk-layout', LAYOUTS[name] ? name : 'spiral');
+  if (!LAYOUTS[name]) name = 'spiral';
+  store.set('desk-layout', name);
   syncScatterButton();
-  relayoutCards(LAYOUTS[currentLayout()].run);
+  layoutStep = relayoutCards(LAYOUTS[name].run, name === lastLayout ? layoutStep + 1 : 0);
+  lastLayout = name;
 }
 
 // 摆法菜单：从小箭头上方弹出，左边和「散落」按钮对齐；右边别压住小地图
