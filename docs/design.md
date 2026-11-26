@@ -7,7 +7,7 @@
 | 地址 | 内容 |
 |---|---|
 | `leorxx.xyz/` | 主页，单个 HTML 文件（`web/home.html`） |
-| `leorxx.xyz/desk` | 桌面：画布 `#desk`、列表 `#library`、设置 `#settings`，同一个页面（`web/desk.html`）；没登录时只显示登录页 |
+| `leorxx.xyz/desk` | 桌面：画布 `#desk`、列表 `#library`、设置 `#settings`，同一个页面（`web/desk.html`）；没登录也能看画布和列表，「设置」标签变成「登录」 |
 | `leorxx.xyz/darkroom` | 旧地址，302 到 `/desk` |
 | `leorxx.xyz/api/*` | 接口 |
 | `img.leorxx.xyz/i/*` | 出文件。上传的内容放在单独的子域名上，和页面不同源；这个域名的其他地址都 302 到 `/desk` |
@@ -47,9 +47,19 @@ web/            目录和网址一一对应
 | 浏览器 | 通行密钥登录后拿到的会话 Cookie | 页面上的所有接口 |
 | 脚本 | API 令牌，`Authorization: Bearer` | 按权限：`POST /api/v1/upload`（上传）、`GET /api/v1/files`（读取） |
 | AI | 同一种令牌，或者把令牌放在地址里 `/api/mcp/<令牌>` | MCP，工具按权限给 |
-| 任何人 | 不用 | 主页、`/api/status`、`/api/health`、`/i/*` 文件外链 |
+| 任何人 | 不用 | 主页、`/api/status`、`/api/health`、`/i/*` 文件外链；桌面的画布和列表（只读，见下面的「访客」） |
 
 哪些接口要登录、哪些要令牌，在 `server.js` 的路由表里逐条标注；没标注的默认要登录，新加的接口不会忘了保护。
+
+### 访客
+
+看是公开的，改要登录：把桌面打开给别人看，就是分享。
+
+- 服务端：`GET /api/desk`、`/api/images`、`/api/images/months`、`/api/stats` 在路由表里标成 `VIEW`，有会话就带上，没有也放行；其余接口照旧要登录。回收站是私有的：`/api/trash` 要登录，`/api/stats` 对访客只给 `count` 和 `bytes`。
+- 页面：没登录时 `body` 带 `guest`，带 `edit-only` 的按钮和快捷键说明都藏起来。画布工具只剩选择和抓手，没有撤销重做、上传、理齐散落、删除和配色，不能新建或编辑便签和分区标题，不能缩放卡片；列表没有回收站，也不能移入回收站。
+- 访客可以选中、复制链接、预览，也能在本地拖动卡片和分区、用方向键微调，但不保存，刷新就复原。往画布上拖文件或 ⌘V 会提示先登录。
+- 「设置」标签没登录时叫「登录」，点进去是登录卡片；登录后变回「设置」，画布和列表重新加载。退出登录或会话过期时退回访客，停在原来的页面。
+- 公开的范围：不在回收站里的文件（文件名、缩略图、原文件）和画布上的便签、分区、连线、笔迹，谁都能看到。不想公开的移进回收站。
 
 ### 通行密钥
 
@@ -82,7 +92,7 @@ web/            目录和网址一一对应
 
 ## 画布快捷键
 
-工具坞上不写快捷键，都收在画布左下角的「?」面板里（按 ? 也能打开），鼠标停在按钮上也能看到。
+工具坞上不写快捷键，都收在画布左下角的「?」面板里（按 ? 也能打开），鼠标停在按钮上也能看到。访客的面板里只列不改东西的那些。
 
 | 按键 | 作用 |
 | --- | --- |
@@ -146,7 +156,7 @@ api_tokens  token_hash, name, scopes, created_at, last_used_at
 
 ## 接口
 
-浏览器发来的写操作（带 `Origin` 头）只接受同源。没有特别说明的都要登录。
+浏览器发来的写操作（带 `Origin` 头）只接受同源。没有特别说明的都要登录；标了「访客可看」的没登录也能调。
 
 ```
 GET    /api/auth/state                    { authed, hasPasskey }                    公开
@@ -159,19 +169,19 @@ GET    /api/tokens
 POST   /api/tokens                        { name, scopes } → { token }（只返回这一次）
 DELETE /api/tokens/:id
 
-GET    /api/desk                          { files, board } 画布上的文件和布局
+GET    /api/desk                          { files, board } 画布上的文件和布局；访客可看
 PATCH  /api/desk                          { files?: [{ id, x?, y?, w?, rot?, z? }], board? }
 
 POST   /api/images                        原始字节 + x-filename / x-source-hash / x-original-size / x-width / x-height
 PUT    /api/images/:id/thumb              缩略图字节
-GET    /api/images?cursor&q&kind&month&limit
-GET    /api/images/months                 [{ month, count }]
+GET    /api/images?cursor&q&kind&month&limit  访客可看
+GET    /api/images/months                 [{ month, count }]；访客可看
 GET    /api/images/by-hash/:hash          查重
 POST   /api/images/trash                  { ids }
 GET    /api/trash
 POST   /api/trash/restore                 { ids }
 POST   /api/trash/purge                   { ids? } 不带 ids 即清空
-GET    /api/stats                         { count, bytes, trashCount, trashBytes, trashDays, quotaBytes }；quotaBytes 是 STORAGE_GB，设置页的用量进度条用
+GET    /api/stats                         { count, bytes, trashCount, trashBytes, trashDays, quotaBytes }；quotaBytes 是 STORAGE_GB，设置页的用量进度条用；访客可看，只给 count、bytes
 
 POST   /api/v1/upload                     令牌（上传）：请求体是文件原始字节，X-Filename 可选
 GET    /api/v1/files?q&kind&month&limit&cursor    令牌（读取）

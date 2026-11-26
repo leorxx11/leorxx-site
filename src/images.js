@@ -290,6 +290,8 @@ export function handleByHash(req, res, hash) {
 export function handleStats(req, res) {
   const active = db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes FROM images WHERE deleted_at IS NULL').get();
   const trash = db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes FROM images WHERE deleted_at IS NOT NULL').get();
+  // 回收站是私有的：没登录只给文件数和大小
+  if (!req.session) return send(res, 200, { count: active.count, bytes: active.bytes });
   send(res, 200, { count: active.count, bytes: active.bytes, trashCount: trash.count, trashBytes: trash.bytes, trashDays: config.trashDays, quotaBytes: config.storageBytes });
 }
 

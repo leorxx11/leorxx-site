@@ -1,5 +1,6 @@
-// 入口：登录（通行密钥），画布 / 列表 / 设置 三个视图切换，深浅色
-// 地址栏：#desk、#desk/<id>、#library、#library/<id>、#settings；没登录时不管地址是什么都只显示登录页
+// 入口：画布 / 列表 / 设置 三个视图切换，登录（通行密钥），深浅色
+// 地址栏：#desk、#desk/<id>、#library、#library/<id>、#settings
+// 没登录也能看画布和列表（访客，body.guest）；「设置」标签变成「登录」，点进去是登录卡片
 
 import { $, $$, api, replay, setUnauthorizedHandler, toast, transition } from './lib.js';
 import { createPasskey, explain, getPasskey, supported } from './webauthn.js';
@@ -7,15 +8,19 @@ import * as desk from './desk.js';
 import * as library from './library.js';
 import * as settings from './settings.js';
 
-const views = { desk, library, settings };
+// login 不是一个标签：访客点「登录」时，设置页的位置显示登录卡片
+const views = { desk, library, settings, login: { enter: () => prepareLogin() } };
 const started = new Set();
 let current = null;
+let booted = false;
 let authed = false;
+let authState = null; // /api/auth/state 的结果：{ authed, hasPasskey }
 
 function showView(name, animate) {
   document.body.dataset.view = name;
+  const tab = name === 'login' ? 'settings' : name;
   $$('.view').forEach((v) => { v.hidden = v.id !== `view-${name}`; });
-  $$('#tabs a').forEach((a) => a.setAttribute('aria-current', a.dataset.view === name ? 'page' : 'false'));
+  $$('#tabs a').forEach((a) => a.setAttribute('aria-current', a.dataset.view === tab ? 'page' : 'false'));
   syncTabSlider(animate);
   replay($(`#view-${name}`));
 }
@@ -39,9 +44,11 @@ function parseHash() {
 }
 
 function route() {
-  if (!authed) return;
-  const { name, arg } = parseHash();
-  if (!started.has(name)) { started.add(name); views[name].init(); }
+  if (!booted) return;
+  const parsed = parseHash();
+  const name = parsed.name === 'settings' && !authed ? 'login' : parsed.name;
+  const { arg } = parsed;
+  if (!started.has(name)) { started.add(name); views[name].init?.(); }
   if (name === current) { views[name].enter?.(arg, false); return; }
   const first = current === null;
   const prev = current;
@@ -64,7 +71,7 @@ window.addEventListener('hashchange', route);
 // ---------- 登录 ----------
 const loginErr = (msg) => { $('#login-err').textContent = msg; };
 const TIPS = {
-  login: '私人桌面，用通行密钥进入',
+  login: '登录后可以上传、整理和删除',
   setup: '输入初始化码，在这台设备上绑定通行密钥',
   first: '还没有绑定通行密钥。初始化码在服务器日志里（docker logs darkroom）',
 };
@@ -79,30 +86,40 @@ function setStep(step) {
   if (step !== 'login') $('#setup-code').focus();
 }
 
-function enterApp() {
-  // 登录过期后重新进来：画布和列表可能已经变了，下次进入时重新加载
+// 登录状态一变：标签改名，画布和列表下次进入时重新加载（访客在画布上挪过的位置也就复原了）
+function setAuthed(on) {
+  authed = on;
+  document.body.classList.toggle('guest', !on);
+  $('#tabs a[data-view="settings"]').textContent = on ? '设置' : '登录';
+  syncTabSlider();
   if (started.size) window.dispatchEvent(new Event('darkroom:changed'));
-  authed = true;
+  window.dispatchEvent(new Event('darkroom:auth'));
+}
+
+function enterApp() {
+  if (authState) authState.hasPasskey = true;
+  setAuthed(true);
   loginErr('');
   route();
 }
 
-function showLogin(state) {
-  authed = false;
-  views[current]?.leave?.();
-  current = null;
-  showView('login');
-  if (!state) return loginErr('连不上服务器，刷新再试试');
-  if (!supported()) return loginErr('这个浏览器不支持通行密钥，换个新一点的浏览器吧');
-  setStep(state.hasPasskey ? 'login' : 'first');
+function leaveApp() {
+  setAuthed(false);
+  route();
 }
 
-// 先问服务器登录了没有：登录着就直接进，不闪登录页
+function prepareLogin() {
+  if (!authState) return loginErr('连不上服务器，刷新再试试');
+  if (!supported()) return loginErr('这个浏览器不支持通行密钥，换个新一点的浏览器吧');
+  setStep(authState.hasPasskey ? 'login' : 'first');
+}
+
+// 先问服务器登录了没有，再进当前地址对应的页面；没登录就是访客
 async function boot() {
-  let state = null;
-  try { state = await api('/api/auth/state'); } catch {}
-  if (state?.authed) enterApp();
-  else showLogin(state);
+  try { authState = await api('/api/auth/state'); } catch { authState = null; }
+  booted = true;
+  setAuthed(!!authState?.authed);
+  route();
 }
 
 // 操作期间按钮禁用，失败时把浏览器的错误翻译成人话
@@ -136,14 +153,13 @@ $('#setup-form').addEventListener('submit', (e) => {
   });
 });
 
-// 用着用着登录失效了（在别的设备上点了「退出其他设备」等）
+// 用着用着登录失效了（在别的设备上点了「退出其他设备」等）：退回访客，在哪页就留在哪页
 setUnauthorizedHandler(() => {
   if (!authed) return;
-  authed = false;
-  toast('登录已失效，请重新登录');
-  boot();
+  toast('登录已过期，在「登录」里重新登录');
+  leaveApp();
 });
-window.addEventListener('darkroom:logout', boot);
+window.addEventListener('darkroom:logout', leaveApp);
 
 // ---------- 深浅色：和主页共用 localStorage 里的 theme ----------
 const root = document.documentElement;

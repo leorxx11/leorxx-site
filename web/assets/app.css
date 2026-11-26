@@ -210,7 +210,10 @@ select.pill {
 }
 
 /* ---------- 登录：没登录时只有这一页，顶栏只留 home 和深浅色 ---------- */
-body[data-view="login"] #tabs, body[data-view="login"] .foot { display: none; }
+body[data-view="login"] .foot { display: none; }
+/* 访客（没登录）：改动用的按钮、快捷键说明、缩放手柄都藏起来 */
+body.guest .edit-only, body:not(.guest) .guest-only { display: none !important; }
+body.guest .d-resize { display: none !important; }
 .login { display: grid; place-items: center; min-height: calc(100svh - 200px); }
 .gate { display: flex; flex-direction: column; align-items: center; gap: 16px; width: min(100%, 300px); text-align: center; }
 .gate-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--fill); color: var(--text-2); }

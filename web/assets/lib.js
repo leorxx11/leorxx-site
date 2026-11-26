@@ -3,13 +3,16 @@
 export const $ = (s, el = document) => el.querySelector(s);
 export const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
+// 访客：没登录也能看画布和列表，但不能改（main.js 给 body 加 guest）
+export const isGuest = () => document.body.classList.contains('guest');
+
 export const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
 };
 
 // ---------- 请求 ----------
-// 登录过期（接口回 401）时交给 main.js 处理：提示一句，回到登录页
+// 登录过期（接口回 401）时交给 main.js 处理：提示一句，退回访客
 // 之后两秒内各处跟着报的「请先登录」不再弹出，免得盖掉那句提示
 let onUnauthorized = () => {};
 let muteErrorsUntil = 0;

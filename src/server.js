@@ -132,6 +132,8 @@ async function checkAll() {
 // ---------- 路由 ----------
 // 第四项是谁能访问：不写就是要登录（浏览器会话）；PUBLIC 谁都能访问；READ / UPLOAD 要带对应权限的 API 令牌
 const PUBLIC = 'public';
+// VIEW 谁都能看（画布、列表）；登录了的话 req.session 有值，接口可以多给一点
+const VIEW = 'view';
 const READ = 'token:read';
 const UPLOAD = 'token:upload';
 
@@ -157,19 +159,20 @@ const routes = [
   ['GET', '/api/v1/files', images.handleApiList, READ],
   ['GET', /^\/api\/v1\/files\/(\d+)$/, (req, res, m) => images.handleApiGet(req, res, Number(m[1])), READ],
 
-  ['GET', '/api/desk', desk.handleGetDesk],
+  // 看是公开的，改要登录：读画布、列表、用量谁都能调，其余写操作和回收站都要登录
+  ['GET', '/api/desk', desk.handleGetDesk, VIEW],
   ['PATCH', '/api/desk', desk.handlePatchDesk],
 
   ['POST', '/api/images', images.handleUpload],
-  ['GET', '/api/images', images.handleList],
-  ['GET', '/api/images/months', images.handleMonths],
+  ['GET', '/api/images', images.handleList, VIEW],
+  ['GET', '/api/images/months', images.handleMonths, VIEW],
   ['GET', /^\/api\/images\/by-hash\/(\w+)$/, (req, res, m) => images.handleByHash(req, res, m[1])],
   ['PUT', /^\/api\/images\/(\d+)\/thumb$/, (req, res, m) => images.handleThumb(req, res, Number(m[1]))],
   ['POST', '/api/images/trash', images.handleMoveToTrash],
   ['GET', '/api/trash', images.handleTrashList],
   ['POST', '/api/trash/restore', images.handleRestore],
   ['POST', '/api/trash/purge', images.handlePurge],
-  ['GET', '/api/stats', images.handleStats],
+  ['GET', '/api/stats', images.handleStats, VIEW],
 ];
 
 async function route(req, res) {
@@ -199,6 +202,7 @@ async function route(req, res) {
     if (m !== method) continue;
     if (typeof pattern === 'string' ? pattern === path : pattern.test(path)) {
       if (access === READ || access === UPLOAD) auth.requireApiToken(req, access.slice(6));
+      else if (access === VIEW) req.session = auth.authenticate(req, res);
       else if (access !== PUBLIC) req.session = auth.requireSession(req, res);
       return handler(req, res, typeof pattern === 'string' ? url : path.match(pattern));
     }

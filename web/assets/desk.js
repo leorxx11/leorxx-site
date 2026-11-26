@@ -1,7 +1,8 @@
 // 全屏无限画布视图（#desk）：文件卡片散落与拖拽、便签、分区框、连线、手写批注、小地图、多步撤销与自动同步
+// 访客（没登录）只能看：可以平移缩放、选中复制、预览，也能在本地拖动卡片，但什么都不保存
 
 import {
-  $, api, copy, copyButton, esc, extLabel, fmtLabel, fmtLong, fmtSize, fmtSwitch, formatLink, getFmt, onFmtChange, toast,
+  $, api, copy, copyButton, esc, extLabel, fmtLabel, fmtLong, fmtSize, fmtSwitch, formatLink, getFmt, isGuest, onFmtChange, toast,
 } from './lib.js';
 import { renderPreview } from './preview.js';
 import { normalizeFileName, uploadFileToDesk } from './uploader.js';
@@ -94,6 +95,11 @@ export function init() {
   bindHudEvents();
 
   window.addEventListener('darkroom:changed', () => { stale = true; });
+  // 登录或退出：放下手里的选中和工具（访客只有选择和抓手），画布内容由上面的 stale 重新加载
+  window.addEventListener('darkroom:auth', () => {
+    clearSelection();
+    setTool('select');
+  });
   window.addEventListener('darkroom:theme', () => {
     if (!active) return;
     renderStrokes();
@@ -161,6 +167,8 @@ function handleFocusArg() {
 
 // ---------- 自动保存与历史撤销栈 ----------
 function scheduleSave({ fileIds = [], board = false } = {}) {
+  // 访客拖动只在本地生效，刷新就复原
+  if (isGuest()) return;
   for (const id of fileIds) dirtyFileIds.add(id);
   if (board) dirtyBoard = true;
   clearTimeout(saveTimer);
@@ -228,6 +236,7 @@ function commitNudge() {
 }
 
 function undo() {
+  if (isGuest()) return;
   commitNudge();
   if (histIdx <= 0) return;
   histIdx--;
@@ -237,6 +246,7 @@ function undo() {
 }
 
 function redo() {
+  if (isGuest()) return;
   commitNudge();
   if (histIdx >= history.length - 1) return;
   histIdx++;
@@ -306,6 +316,7 @@ function renderFrames() {
     t.textContent = f.title || '分区';
     t.addEventListener('dblclick', (e) => {
       e.stopPropagation();
+      if (isGuest()) return;
       t.contentEditable = 'true';
       t.focus();
     });
@@ -473,7 +484,7 @@ function buildNoteCardEl(n, entering = false) {
   el.style.zIndex = n.z || 1;
   if (n.w) el.style.width = `${n.w}px`;
   el.style.transform = cardTransform(n.x, n.y, n.rot);
-  el.innerHTML = `<div class="d-note-body" spellcheck="false"></div><div class="d-note-tag">便签 · 双击编辑</div><span class="d-resize" data-resize="${esc(n.id)}"></span>`;
+  el.innerHTML = `<div class="d-note-body" spellcheck="false"></div><div class="d-note-tag">便签<span class="edit-only"> · 双击编辑</span></div><span class="d-resize" data-resize="${esc(n.id)}"></span>`;
   el.querySelector('.d-note-body').textContent = n.text || '';
   el.addEventListener('dblclick', (e) => { e.stopPropagation(); startNoteEdit(el, n); });
   return el;
@@ -481,7 +492,7 @@ function buildNoteCardEl(n, entering = false) {
 
 function startNoteEdit(el, n) {
   const body = el.querySelector('.d-note-body');
-  if (!body) return;
+  if (!body || isGuest()) return;
   body.contentEditable = 'true';
   body.focus();
   const sel = window.getSelection();
@@ -544,6 +555,8 @@ function syncMenuPos() {
   if (!menu || !active) { if (menu) menu.hidden = true; return; }
 
   if (selectedFrameId || selectedConnId || selectedStrokeId) {
+    // 这时胶囊上只有「删除」，访客用不了，干脆不出
+    if (isGuest()) { menu.hidden = true; return; }
     const rect = selectedFrameId
       ? $(`.d-frame[data-fid="${selectedFrameId}"]`, $('#desk-frames'))?.getBoundingClientRect()
       : selectedConnId
@@ -590,6 +603,8 @@ function syncMenuPos() {
 
 // ---------- 工具栏与指针手势 ----------
 function setTool(t) {
+  // 访客只有选择和抓手
+  if (isGuest() && t !== 'select' && t !== 'hand') return;
   tool = t;
   $('#desk-surface').dataset.tool = t;
   $('#desk-dock').querySelectorAll('.d-tool[data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === t));
@@ -597,6 +612,7 @@ function setTool(t) {
 }
 
 function createNoteAt(wx, wy, text = '', tint = 'amber') {
+  if (isGuest()) return;
   const note = { id: uid('n'), x: Math.round(wx), y: Math.round(wy), w: 204, rot: 0, z: ++zTop, tint, text };
   notes.push(note);
   clearSelection();
@@ -646,7 +662,7 @@ function bindCanvasEvents() {
       return;
     }
 
-    const resizeKey = e.target.dataset?.resize;
+    const resizeKey = !isGuest() && e.target.dataset?.resize;
     if (resizeKey) {
       const c = findCard(resizeKey);
       const el = $(`.d-card[data-key="${resizeKey}"]`, $('#desk-cards'));
@@ -657,7 +673,7 @@ function bindCanvasEvents() {
       }
     }
 
-    const resizeFid = e.target.dataset?.resizeFrame;
+    const resizeFid = !isGuest() && e.target.dataset?.resizeFrame;
     if (resizeFid) {
       const f = frames.find((x) => x.id === resizeFid);
       const el = $(`.d-frame[data-fid="${resizeFid}"]`, $('#desk-frames'));
@@ -963,6 +979,8 @@ function bindCanvasEvents() {
 
 // ---------- 真实文件上传上桌 ----------
 async function dropFilesOntoDesk(fileList, screenX, screenY) {
+  // 访客拖进来的文件也要拦下，不然浏览器会直接打开它
+  if (isGuest()) { toast('登录后才能上传'); return; }
   const arr = [...fileList];
   if (!arr.length) return;
   const base = toWorld(screenX, screenY);
@@ -1048,7 +1066,7 @@ function bindHudEvents() {
   // 全窗口拖拽文件上桌
   let dragDepth = 0;
   window.addEventListener('dragenter', (e) => {
-    if (!active || !e.dataTransfer?.types?.includes('Files')) return;
+    if (!active || isGuest() || !e.dataTransfer?.types?.includes('Files')) return;
     e.preventDefault();
     dragDepth++;
     $('#desk-drop-halo').hidden = false;
@@ -1069,6 +1087,7 @@ function bindHudEvents() {
   // ⌘V 粘贴截图文件或纯文本便签
   window.addEventListener('paste', (e) => {
     if (!active || e.target.closest('input, textarea, [contenteditable="true"]')) return;
+    if (isGuest()) { toast('登录后才能往画布上贴东西'); return; }
     if (e.clipboardData?.files?.length) {
       e.preventDefault();
       dropFilesOntoDesk(e.clipboardData.files, window.innerWidth / 2, window.innerHeight / 2);
@@ -1277,6 +1296,7 @@ async function copySelected() {
 
 // ⌘D：便签原地复制一份，错开一点；文件在画布上只有一张（位置存在文件上），不复制
 function duplicateNotes() {
+  if (isGuest()) return;
   const src = [...selectedKeys].map(findCard).filter((c) => c?.isNote);
   if (!src.length) {
     if (selectedKeys.size) toast('文件在画布上只有一张，⌘D 只复制便签');
@@ -1366,6 +1386,7 @@ function fitSelection() {
 }
 
 async function deleteSelected() {
+  if (isGuest()) return;
   const fids = [...selectedKeys].filter((k) => k.startsWith('f:')).map((k) => Number(k.slice(2)));
   const nids = new Set([...selectedKeys].filter((k) => !k.startsWith('f:')));
   let boardChanged = false;
@@ -1569,7 +1590,7 @@ function renderPanel(f) {
     className: 'textbtn', href: f.url, target: '_blank', rel: 'noopener',
     textContent: `${f.kind === 'image' ? '看原图' : f.kind === 'other' ? '下载' : '打开'} ↗`,
   });
-  const trash = Object.assign(document.createElement('button'), { type: 'button', className: 'textbtn danger', textContent: '移入回收站' });
+  const trash = Object.assign(document.createElement('button'), { type: 'button', className: 'textbtn danger edit-only', textContent: '移入回收站' });
   trash.addEventListener('click', () => {
     clearSelection();
     selectedKeys.add(`f:${f.id}`);

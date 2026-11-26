@@ -1,10 +1,11 @@
 // 列表：按月分组的卡片、详情页（图片、文本、PDF、音视频预览）、多选、回收站
 // 列表和画布是同一批文件，只是换个方式看
 // 详情页的地址是 #library/<id>，浏览器的返回键可以关掉它
+// 访客（没登录）只能看和复制链接：没有回收站，也不能移入回收站
 
 import {
   $, $$, CHECK, api, copy, copyButton, esc, fmtBig, fmtDay, fmtLong, fmtMonth, fmtSize, fmtSwitch,
-  formatLink, getFmt, isToday, onFmtChange, toast, transition,
+  formatLink, getFmt, isGuest, isToday, onFmtChange, toast, transition,
 } from './lib.js';
 import { placeholder, renderPreview } from './preview.js';
 
@@ -96,6 +97,10 @@ export function init() {
   });
 
   window.addEventListener('darkroom:changed', () => { stale = true; });
+  // 退出登录时正开着回收站：回到全部文件，下次进来重新加载
+  window.addEventListener('darkroom:auth', () => {
+    if (isGuest() && mode === 'trash') setMode('sheet', false);
+  });
 }
 
 // 进入列表，或者地址在 #library 和 #library/<id> 之间变化
@@ -185,7 +190,7 @@ function openPending() {
 function setStats(st) {
   stats = st;
   $('#trash-count').textContent = st.trashCount ? String(st.trashCount) : '';
-  $('#trash-days').textContent = st.trashDays;
+  if (st.trashDays) $('#trash-days').textContent = st.trashDays;
 }
 
 async function refreshStats() {
@@ -348,7 +353,9 @@ function renderDetail() {
       textContent: `${it.kind === 'image' ? '看原图' : it.kind === 'other' ? '下载' : '打开'} ↗`,
     });
     const toDesk = textButton('在画布上找到', () => { location.hash = `desk/${it.id}`; });
-    acts.append(copyButton(() => code.textContent, { className: 'btn primary' }), open, toDesk, grow(), textButton('移入回收站', () => moveToTrash([it.id]), true));
+    const trash = textButton('移入回收站', () => moveToTrash([it.id]), true);
+    trash.classList.add('edit-only');
+    acts.append(copyButton(() => code.textContent, { className: 'btn primary' }), open, toDesk, grow(), trash);
   } else {
     const back = Object.assign(document.createElement('button'), { type: 'button', className: 'btn primary', textContent: '恢复' });
     back.addEventListener('click', () => restore([it.id]));
@@ -376,11 +383,13 @@ async function step(delta) {
 }
 
 // ---------- 模式、多选 ----------
-function setMode(m) {
+// load = false：只切状态，等下次进入列表时再加载
+function setMode(m, load = true) {
   mode = m;
   view.classList.toggle('trash', m === 'trash');
   $$('#lib-mode button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.mode === m));
   setMulti(false);
+  if (!load) { stale = true; return; }
   transition(() => { groups.innerHTML = ''; items = []; updateCounts(); $('#lib-empty').hidden = true; });
   reload();
 }
