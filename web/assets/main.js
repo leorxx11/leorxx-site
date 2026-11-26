@@ -155,6 +155,7 @@ function syncThemeButton() {
   const btn = $('#theme');
   btn.innerHTML = isDark() ? SUN : MOON;
   btn.setAttribute('aria-label', isDark() ? '切换到浅色' : '切换到深色');
+  document.querySelectorAll('meta[name=theme-color]').forEach((m) => { m.content = isDark() ? '#0a0a0a' : '#ffffff'; });
   window.dispatchEvent(new Event('darkroom:theme'));
 }
 syncThemeButton();

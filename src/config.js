@@ -30,6 +30,8 @@ export const config = {
   maxBytes: Number(env.MAX_MB || 20) * 1024 * 1024,
   maxFileBytes: Number(env.MAX_FILE_MB || 100) * 1024 * 1024,
   trashDays: Number(env.TRASH_DAYS || 30),
+  // 设置页用量进度条的总量，默认是 R2 的免费额度
+  storageBytes: Number(env.STORAGE_GB || 10) * 1024 ** 3,
   r2: {
     accessKeyId: required('R2_ACCESS_KEY_ID'),
     secretAccessKey: required('R2_SECRET_ACCESS_KEY'),

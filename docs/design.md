@@ -80,6 +80,28 @@ web/            目录和网址一一对应
 - **Service Worker**：页面和脚本网络优先，断网时用缓存打开；`/api/` 和 `/i/` 一律直连网络。改了缓存列表要同时改 `sw.js` 里的 `CACHE` 版本号。
 - **页面切换**：画布、列表、设置共用一个顶栏，切换时用 View Transition 淡入淡出，顶栏不动；主页和桌面之间也有跨页面的 View Transition。
 
+## 画布快捷键
+
+工具坞上不写快捷键，都收在画布左下角的「?」面板里（按 ? 也能打开），鼠标停在按钮上也能看到。
+
+| 按键 | 作用 |
+| --- | --- |
+| V H N A P F | 选择、抓手、便签、连线、画笔、分区 |
+| 按住空格拖动 | 临时平移 |
+| ⌘Z / ⌘⇧Z | 撤销 / 重做 |
+| ⌘A | 全选 |
+| ⌘C | 复制选中的卡片：文件按「默认复制为」的格式复制链接，便签复制文字；页面上选中了文字时照常复制文字 |
+| ⌘D | 便签复制一份（文件在画布上只有一张，不复制） |
+| ⌘V | 粘贴截图、文件或文字（文字变成便签） |
+| 方向键 / ⇧方向键 | 选中的卡片挪 1 / 10；选中分区时框里的卡片一起走；没选中时平移视野 |
+| 回车 | 文件打开预览，便签进入编辑 |
+| Delete / ⌫ | 删除选中（文件进回收站） |
+| ⌘+ / ⌘− / ⌘0 | 以屏幕中心放大 / 缩小 / 回到 100% |
+| ⇧1 / ⇧2 | 看全部 / 看选中的 |
+| ⌘K | 搜索定位 |
+| Esc | 关掉搜索和预览，取消选中，回到选择工具 |
+| ? | 打开或关闭快捷键面板 |
+
 ## 数据
 
 R2 的列表接口只给文件名、大小、时间，所以另建索引：Node 自带的 SQLite（`node:sqlite`），线上在 Docker volume 里的 `/data/darkroom.db`。
@@ -149,7 +171,7 @@ POST   /api/images/trash                  { ids }
 GET    /api/trash
 POST   /api/trash/restore                 { ids }
 POST   /api/trash/purge                   { ids? } 不带 ids 即清空
-GET    /api/stats
+GET    /api/stats                         { count, bytes, trashCount, trashBytes, trashDays, quotaBytes }；quotaBytes 是 STORAGE_GB，设置页的用量进度条用
 
 POST   /api/v1/upload                     令牌（上传）：请求体是文件原始字节，X-Filename 可选
 GET    /api/v1/files?q&kind&month&limit&cursor    令牌（读取）

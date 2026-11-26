@@ -158,9 +158,22 @@ async function loadTokens() {
   } catch (err) { toast(err.message); }
 }
 
+const pctOf = (bytes, total) => Math.min(100, (bytes / total) * 100);
+const fmtPct = (p) => (p === 0 ? '0%' : p < 0.1 ? '不到 0.1%' : `${p < 10 ? p.toFixed(1) : Math.round(p)}%`);
+const fmtQuota = (b) => (b % 1024 ** 3 === 0 ? `${b / 1024 ** 3} GB` : fmtBig(b));
+// 用得很少时也留一小截（4px），不然进度条看着是空的
+const barWidth = (bytes, pct) => (bytes ? `max(4px, ${pct}%)` : '0px');
+
 async function loadUsage() {
   try {
     const st = await api('/api/stats');
     $('#usage').textContent = `${st.count} 个文件 · ${fmtBig(st.bytes)}${st.trashCount ? ` · 回收站 ${st.trashCount} 项 ${fmtBig(st.trashBytes)}` : ''}`;
+    const used = pctOf(st.bytes, st.quotaBytes);
+    const trash = pctOf(st.trashBytes, st.quotaBytes);
+    $('#usage-cap').textContent = `${fmtPct(used + trash)} · 共 ${fmtQuota(st.quotaBytes)}`;
+    const meter = $('#usage-meter');
+    meter.setAttribute('aria-valuenow', (used + trash).toFixed(2));
+    meter.querySelector('.m-used').style.width = barWidth(st.bytes, used);
+    meter.querySelector('.m-trash').style.width = barWidth(st.trashBytes, trash);
   } catch (err) { toast(err.message); }
 }

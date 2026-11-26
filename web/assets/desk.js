@@ -49,6 +49,8 @@ const dirtyFileIds = new Set();
 const trashedIds = new Set(); // 已移进回收站的文件，撤销时不再摆回画布
 let dirtyBoard = false;
 let saveTimer = null;
+// 方向键连按时不每一下都记一步撤销：停手 0.4 秒后合成一步
+let nudgeTimer = null;
 
 const isDark = () => (document.documentElement.dataset.theme
   ? document.documentElement.dataset.theme === 'dark'
@@ -118,6 +120,7 @@ export async function enter(arg) {
 
 export function leave() {
   active = false;
+  toggleHelp(false);
   $('#desk-menu').hidden = true;
   $('#desk-search').hidden = true;
   closePanel();
@@ -196,6 +199,9 @@ function cloneSnapshot() {
 }
 
 function pushHistory() {
+  // 这一步已经包含了方向键挪过的位置，不用再单独记
+  clearTimeout(nudgeTimer);
+  nudgeTimer = null;
   history.splice(histIdx + 1);
   history.push(cloneSnapshot());
   if (history.length > 40) history.shift();
@@ -216,7 +222,13 @@ function applySnapshot(snap) {
   scheduleSave({ fileIds: [...allAffected], board: true });
 }
 
+function commitNudge() {
+  if (!nudgeTimer) return;
+  pushHistory();
+}
+
 function undo() {
+  commitNudge();
   if (histIdx <= 0) return;
   histIdx--;
   applySnapshot(history[histIdx]);
@@ -225,6 +237,7 @@ function undo() {
 }
 
 function redo() {
+  commitNudge();
   if (histIdx >= history.length - 1) return;
   histIdx++;
   applySnapshot(history[histIdx]);
@@ -620,6 +633,8 @@ function bindCanvasEvents() {
 
   desk.addEventListener('pointerdown', (e) => {
     if (e.target.closest('[contenteditable="true"]')) return;
+    // 点到画布上就清掉页面里别处选中的文字，⌘C 才会去复制选中的卡片
+    window.getSelection()?.removeAllRanges();
     if (e.button !== 0 && e.button !== 1) return;
     cancelAnimationFrame(flyAnim);
     const wPt = toWorld(e.clientX, e.clientY);
@@ -1111,16 +1126,7 @@ function bindHudEvents() {
   });
 
   // 悬浮操作条按钮
-  $('#dm-copy').addEventListener('click', async () => {
-    const texts = [...selectedKeys].map((k) => {
-      const c = findCard(k);
-      if (!c) return '';
-      return c.isNote ? (c.data.text || '') : formatLink(c.data, getFmt());
-    }).filter(Boolean);
-    if (!texts.length) return;
-    await copy(texts.join('\n'));
-    toast(texts.length > 1 ? `已复制 ${texts.length} 条` : '已复制', true);
-  });
+  $('#dm-copy').addEventListener('click', copySelected);
 
   $('#dm-detail').addEventListener('click', () => {
     const first = [...selectedKeys][0];
@@ -1144,6 +1150,18 @@ function bindHudEvents() {
     scheduleSave({ board: true });
   });
 
+  // 快捷键面板：点「?」或按 ? 开关，点别处、按 Esc 关掉
+  $('#desk-help-btn').addEventListener('click', () => toggleHelp());
+  document.addEventListener('pointerdown', (e) => {
+    if (!$('#desk-help').hidden && !e.target.closest('#desk-help, #desk-help-btn')) toggleHelp(false);
+  }, true);
+  // 不是苹果设备时按键写成 Ctrl / Shift
+  if (!/mac|iphone|ipad/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent)) {
+    const names = { '⌘': 'Ctrl', '⇧': 'Shift', '⌫': 'Delete', '↩': 'Enter' };
+    $('#desk-help').querySelectorAll('kbd').forEach((k) => { k.textContent = names[k.textContent] || k.textContent; });
+    $('#desk-help').querySelectorAll('dt').forEach((d) => { d.textContent = d.textContent.replace('⇧', 'Shift'); });
+  }
+
   // 搜索飞跃定位
   $('#desk-search-btn').addEventListener('click', openSearch);
   $('#desk-cmd-input').addEventListener('input', (e) => renderSearchList(e.target.value));
@@ -1166,6 +1184,7 @@ function bindHudEvents() {
     if (!active) return;
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); return; }
     if (e.key === 'Escape') {
+      if (!$('#desk-help').hidden) { toggleHelp(false); return; }
       if (!$('#desk-search').hidden) { $('#desk-search').hidden = true; return; }
       if (previewId !== null && !document.activeElement?.isContentEditable) { closePanel(); return; }
       if (document.activeElement?.isContentEditable) document.activeElement.blur();
@@ -1179,24 +1198,171 @@ function bindHudEvents() {
       e.shiftKey ? redo() : undo();
       return;
     }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === 'a') {
       e.preventDefault();
       selectedKeys.clear();
       allCards().forEach((c) => selectedKeys.add(c.key));
       syncSelectionDOM();
       return;
     }
+    // ⌘C：页面上选中了文字就照常复制文字，否则复制选中的卡片（和动作条上的「复制」一样）
+    if (mod && e.key.toLowerCase() === 'c' && selectedKeys.size && window.getSelection()?.isCollapsed !== false) {
+      e.preventDefault();
+      copySelected();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateNotes(); return; }
+    // ⌘+ ⌘− ⌘0：以屏幕中心缩放，拦下浏览器自己的整页缩放
+    if (mod && (e.code === 'Equal' || e.key === '=' || e.key === '+')) { e.preventDefault(); zoomAtCenter(zoom * 1.25); return; }
+    if (mod && (e.code === 'Minus' || e.key === '-')) { e.preventDefault(); zoomAtCenter(zoom / 1.25); return; }
+    if (mod && (e.code === 'Digit0' || e.key === '0')) { e.preventDefault(); zoomAtCenter(1); return; }
     if (e.code === 'Space') { spaceHeld = true; $('#desk-surface').classList.add('space-ready'); return; }
     if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); deleteSelected(); return; }
+    if (mod || e.altKey) return;
+
+    // ?（有的键盘布局报的是 ⇧ + /）
+    if (e.key === '?' || (e.shiftKey && (e.code === 'Slash' || e.key === '/'))) { e.preventDefault(); toggleHelp(); return; }
+    // ⇧1 看全部，⇧2 看选中的
+    if (e.shiftKey && e.code === 'Digit1') { e.preventDefault(); fitAll(); return; }
+    if (e.shiftKey && e.code === 'Digit2') { e.preventDefault(); fitSelection(); return; }
+
+    const arrow = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (arrow) {
+      e.preventDefault();
+      // 有选中就挪选中的（⇧ 一次 10），没选中就平移视野
+      const step = e.shiftKey ? 10 : 1;
+      if (!nudgeSelection(arrow[0] * step, arrow[1] * step)) {
+        const pan = e.shiftKey ? 240 : 80;
+        cancelAnimationFrame(flyAnim);
+        panX -= arrow[0] * pan;
+        panY -= arrow[1] * pan;
+        applyCamera();
+      }
+      return;
+    }
+
+    // 回车：文件打开预览，便签进入编辑
+    if (e.key === 'Enter' && selectedKeys.size === 1) {
+      const key = [...selectedKeys][0];
+      const c = findCard(key);
+      const el = $(`.d-card[data-key="${key}"]`, $('#desk-cards'));
+      if (!c || !el) return;
+      e.preventDefault();
+      c.isNote ? startNoteEdit(el, c.data) : openPanel(c.data.id);
+      return;
+    }
 
     const map = { v: 'select', h: 'hand', n: 'note', a: 'arrow', p: 'pen', f: 'frame' };
     const k = e.key.toLowerCase();
-    if (!e.metaKey && !e.ctrlKey && !e.altKey && map[k]) setTool(map[k]);
+    if (map[k]) setTool(map[k]);
   });
   window.addEventListener('keyup', (e) => {
     if (e.code === 'Space') { spaceHeld = false; $('#desk-surface')?.classList.remove('space-ready'); }
   });
   window.addEventListener('resize', () => { if (active) applyCamera(); });
+}
+
+// ---------- 键盘操作：复制、复制一份、微调、缩放、看全部 ----------
+async function copySelected() {
+  const texts = [...selectedKeys].map((k) => {
+    const c = findCard(k);
+    if (!c) return '';
+    return c.isNote ? (c.data.text || '') : formatLink(c.data, getFmt());
+  }).filter(Boolean);
+  if (!texts.length) return;
+  await copy(texts.join('\n'));
+  toast(texts.length > 1 ? `已复制 ${texts.length} 条` : '已复制', true);
+}
+
+// ⌘D：便签原地复制一份，错开一点；文件在画布上只有一张（位置存在文件上），不复制
+function duplicateNotes() {
+  const src = [...selectedKeys].map(findCard).filter((c) => c?.isNote);
+  if (!src.length) {
+    if (selectedKeys.size) toast('文件在画布上只有一张，⌘D 只复制便签');
+    return;
+  }
+  clearSelection();
+  for (const c of src) {
+    const n = { ...c.data, id: uid('n'), x: c.data.x + 24, y: c.data.y + 24, z: ++zTop };
+    notes.push(n);
+    selectedKeys.add(n.id);
+    $('#desk-cards').appendChild(buildNoteCardEl(n, true));
+  }
+  syncSelectionDOM();
+  drawMinimap();
+  pushHistory();
+  scheduleSave({ board: true });
+}
+
+// 方向键挪选中的卡片；选中的是分区时，框里的卡片跟着走（和拖动分区一样）。没东西可挪返回 false
+function nudgeSelection(dx, dy) {
+  const moving = new Map();
+  for (const k of selectedKeys) {
+    const c = findCard(k);
+    if (c) moving.set(k, c);
+  }
+  const frame = selectedFrameId ? frames.find((f) => f.id === selectedFrameId) : null;
+  if (frame) {
+    for (const c of allCards()) {
+      if (c.x >= frame.x && c.x <= frame.x + frame.w && c.y >= frame.y && c.y <= frame.y + frame.h) moving.set(c.key, findCard(c.key));
+    }
+    frame.x += dx;
+    frame.y += dy;
+    const el = $(`.d-frame[data-fid="${frame.id}"]`, $('#desk-frames'));
+    if (el) { el.style.left = `${frame.x}px`; el.style.top = `${frame.y}px`; }
+  }
+  if (!moving.size && !frame) return false;
+  const cards = [...moving.values()];
+  for (const c of cards) {
+    c.data.x += dx;
+    c.data.y += dy;
+    const el = $(`.d-card[data-key="${c.key}"]`, $('#desk-cards'));
+    if (el) { el.classList.remove('animating'); el.style.transform = cardTransform(c.data.x, c.data.y, c.data.rot); }
+  }
+  renderConnectors();
+  drawMinimap();
+  syncMenuPos();
+  scheduleSave({ fileIds: cards.filter((c) => !c.isNote).map((c) => c.data.id), board: Boolean(frame) || cards.some((c) => c.isNote) });
+  clearTimeout(nudgeTimer);
+  nudgeTimer = setTimeout(commitNudge, 400);
+  return true;
+}
+
+function zoomAtCenter(tz) {
+  const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+  const w = toWorld(cx, cy);
+  const z = clamp(tz, 0.22, 3.0);
+  animateCamera(cx - w.x * z, cy - w.y * z, z, 220);
+}
+
+// 把一组元素整体放进视野：上面让开顶栏，下面让开工具坞，最多放大到 100%
+function fitElements(els) {
+  let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+  for (const el of els) {
+    const q = el.getBoundingClientRect();
+    if (!q.width && !q.height) continue;
+    l = Math.min(l, q.left); t = Math.min(t, q.top); r = Math.max(r, q.right); b = Math.max(b, q.bottom);
+  }
+  if (l === Infinity) return false;
+  const p1 = toWorld(l, t), p2 = toWorld(r, b);
+  const top = 84, bottom = 104, side = 64;
+  const availW = window.innerWidth - side * 2, availH = window.innerHeight - top - bottom;
+  const z = clamp(Math.min(availW / Math.max(1, p2.x - p1.x), availH / Math.max(1, p2.y - p1.y), 1), 0.22, 3.0);
+  const wx = (p1.x + p2.x) / 2, wy = (p1.y + p2.y) / 2;
+  animateCamera(window.innerWidth / 2 - wx * z, top + availH / 2 - wy * z, z, 420);
+  return true;
+}
+
+function fitAll() {
+  const els = document.querySelectorAll('#desk-cards .d-card, #desk-frames .d-frame, #desk-strokes .d-stroke');
+  if (!fitElements(els)) animateCamera(window.innerWidth / 2, window.innerHeight / 2, 1, 360);
+}
+
+function fitSelection() {
+  const els = [...selectedKeys].map((k) => $(`.d-card[data-key="${k}"]`, $('#desk-cards')));
+  if (selectedFrameId) els.push($(`.d-frame[data-fid="${selectedFrameId}"]`, $('#desk-frames')));
+  if (!fitElements(els.filter(Boolean))) fitAll();
 }
 
 async function deleteSelected() {
@@ -1291,6 +1457,13 @@ function jumpFromMinimap(e) {
   panX = window.innerWidth / 2 - wx * zoom;
   panY = window.innerHeight / 2 - wy * zoom;
   applyCamera();
+}
+
+function toggleHelp(open = $('#desk-help').hidden) {
+  $('#desk-help').hidden = !open;
+  const btn = $('#desk-help-btn');
+  btn.classList.toggle('active', open);
+  btn.setAttribute('aria-expanded', String(open));
 }
 
 function openSearch() {
